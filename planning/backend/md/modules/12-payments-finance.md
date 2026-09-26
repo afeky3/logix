@@ -1,0 +1,121 @@
+# Module 12 — Payments, Ledger, Commissions, Invoicing, Settlements and Payouts
+
+> Several rules here depend on **D-02 (commission/tax base)**, **D-03 (merchant of record)** and **D-04 (funds flow)**. The design keeps them configurable. Defaults are marked *(default)*.
+
+## Screens served
+- Customer: SHP/TRP/WHP/CUP Accept quote and pay, M07 Delivery and payment, K-B02 Payment method, K-B03 Booking confirmed, X07 Action could not be completed, DONE (invoice), K-T04 Invoice.
+- Provider: PAY1 Provider settlement, PAY2 Payout completed, K-P11 Provider settlement, P01 Receivables tile.
+- Supplier: S08 Sales settlement, S01 Net receivables tile, K-S06.
+- Dashboard: payments, refunds, settlements, payout batches, commission rules, invoices, reconciliation reports.
+
+## 1. Payments
+
+**PaymentIntent**: `payable_type` + `payable_id`, `amount`, `currency`, `method`, `gateway`, `gateway_payment_id`, `status`, `failure_code?`, `idempotency_key`, `expires_at`, `metadata` (reference `LX-…`/`PO-…`).
+
+Flow:
+1. `POST /payment-intents { payableType, payableId, method }`. It is usually created implicitly by accept-quote or checkout. The server computes the amount and never trusts the client.
+2. The response has gateway client data: hosted payment page URL, SDK token, or Apple Pay session payload (depends on D-05).
+3. The app completes 3DS in the SDK or web view. Card data never touches Logix servers (PCI DSS SAQ-A scope).
+4. The gateway webhook arrives, then `retrievePayment` is called server-to-server, then `PAID`. `payment.succeeded` → order/PO confirmed.
+5. The app polls `GET /payment-intents/{id}` (1 s → backoff, max 60 s) and listens on realtime. Only then does it show B03/SHF.
+
+Failure handling (X07): *"Payment failed or confirmation missing → Check status before paying again → Contact support with transaction reference."* If the status is `PENDING` for more than 10 min, a reconciliation job queries the gateway. The customer is never prompted to pay again while a payment is `PENDING`.
+
+Methods: `MADA`, `CARD` (Visa/MC), `APPLE_PAY`, `STC_PAY` (optional), `BUSINESS_FINANCE` (flagged off).
+
+## 2. Amounts and VAT
+- The quote/checkout snapshot is authoritative: `serviceFee`, `charges[]`, `vatRateBps` (1500), `vatAmount`, `total`.
+- VAT per line, half-up to the halala. Pass-through lines (customs duties) are VAT-exempt and non-commissionable.
+- Displayed as *"Illustrative VAT 15%"* in the designs. Production shows *"VAT 15%"* once approved.
+
+## 3. Commission rules
+
+| Category | Applies to | Rate (supplied) | Base *(default)* |
+|---|---|---|---|
+| `FREIGHT_TRANSPORT` | Shipping, Transport | 10% | Service fee + taxable charges, excluding VAT and pass-through |
+| `CUSTOMS_STORAGE` | Customs, Warehousing | 20% | same |
+| `MARKETPLACE` | Purchase orders | 3.5% | Product subtotal excluding VAT and shipping |
+
+- `CommissionRule`: `category`, `rate_bps`, `vat_on_commission` *(default true, 15%)*, `effective_from`, `effective_to`, `created_by`, `approved_by` (maker-checker).
+- The rate is **snapshotted on the order/PO at creation**. Later rule changes never affect existing orders.
+
+## 4. Ledger (double-entry)
+
+Accounts (per org where relevant):
+
+| Account | Type | Notes |
+|---|---|---|
+| `gateway_clearing` | Asset | Money captured, not yet settled by the gateway |
+| `platform_bank` | Asset | After gateway settlement |
+| `customer_payments_held` | Liability | Funds held for orders until completion |
+| `provider_payable:{org}` / `supplier_payable:{org}` | Liability | Amount owed after completion |
+| `commission_revenue` | Revenue | Platform income |
+| `vat_output_payable` | Liability | VAT on commission (and on the service if principal model, D-03) |
+| `vat_collected_for_providers:{org}` | Liability | Agent model: VAT collected on the provider's behalf |
+| `refunds_payable` | Liability | Approved refunds not yet executed |
+| `cancellation_fees` | Liability → provider/revenue per D-14 | |
+| `payouts_in_transit` | Liability | In the payout batch |
+
+Example postings (agent model *(default)*, transport 2,400 + 360 VAT):
+
+| Event | Debit | Credit |
+|---|---|---|
+| Payment captured 2,760 | `gateway_clearing` 2,760 | `customer_payments_held` 2,760 |
+| Order completed | `customer_payments_held` 2,760 | `provider_payable` 2,760 |
+| Commission 240 + VAT 36 | `provider_payable` 276 | `commission_revenue` 240, `vat_output_payable` 36 |
+| Payout 2,484 | `provider_payable` 2,484 | `payouts_in_transit` 2,484 → `platform_bank` on confirmation |
+
+Every `LedgerTransaction` references its business event (`order_id`, `payment_id`, `refund_id`, `payout_id`). Entries are immutable, and corrections use reversing entries. A nightly job asserts Σ balances = 0 and reconciles `gateway_clearing` against the gateway settlement report.
+
+## 5. Invoicing (depends on D-03)
+
+| Model | Documents produced |
+|---|---|
+| Agent *(default)* | (1) Service tax invoice: provider → customer, generated by the platform **on the provider's behalf** only if a compliant arrangement exists; otherwise the provider uploads its own invoice. (2) Commission tax invoice: Logix → provider/supplier. (3) Credit notes on refunds and adjustments |
+| Principal | (1) Tax invoice: Logix → customer (full amount). (2) Self-billed or provider invoices → Logix. (3) Credit notes |
+
+- Invoice fields per ZATCA: seller/buyer names, VAT numbers, addresses, invoice number (gap-free per issuer), issue date/time, line items, VAT breakdown, totals, QR code, UUID, hash chain (Phase 2 integration: clearance for B2B standard invoices, reporting for simplified B2C).
+- Arabic is mandatory on tax invoices, and the bilingual Arabic/English PDF is rendered by the PDF worker.
+- `GET /orders/{id}/invoice` / `GET /purchase-orders/{id}/invoice` → document metadata + PDF download URL. DONE shows *"Download PDF invoice"*.
+
+## 6. Settlements
+
+- Created on `order.completed` / `purchase_order.completed` (after the return window for POs, D-11).
+- `payable_on` = completion date + **3 business days** (Sun–Thu; holidays from the admin calendar). *"Within 3 business days to the approved account."*
+- **Statement (PAY1/S08):** gross amount, commission (rate + amount), commission VAT, adjustments (refunds, damages, returns), net, `payable_on`, beneficiary account (masked), status.
+  - Example PAY1: *Freight & transport 10% • Customs & storage 20% • Settlement statement: gross, commission, tax and net • Payout within 3 business days to approved account*.
+- Holds (`ON_HOLD`): open damage case, open return, bank account change within 48 h, org suspended, KYB re-verification.
+- Provider/supplier API: `GET /provider/settlements?status`, `GET /provider/settlements/{id}` (+ PDF statement), `GET /provider/receivables/summary` (P01 "Receivables 23,400 SAR", S01 "Net receivables 11,580 SAR"). Same under `/supplier/`.
+
+## 7. Payouts
+
+- MVP: **manual bank batch**. Finance creates a batch of `SCHEDULED` settlements due ≤ today, exports a bank file (CSV/MT940-like per bank format), and a second finance user approves (maker-checker). After the bank transfer, finance marks the batch paid with transfer references (`TRX-…`). PAY2: *Beneficiary account: approved business bank account • Transfer reference TRX-2048 • Transfer date: after settlement conditions are met • Statement: download transaction statement*.
+- Failed transfers (bank reject) → settlement `FAILED` → the org is notified to fix bank details → rescheduled.
+- Phase 4: automated payouts via the gateway or a bank API.
+
+## 8. Refunds
+- Triggered by an approved cancellation, a return resolution, a dispute outcome or a supplier rejection.
+- `Refund`: `payment_id`, `amount` (≤ refundable), `reason`, `case_id?`, `status` (`REQUESTED`/`PROCESSING`/`SUCCEEDED`/`FAILED`), `gateway_refund_id`.
+- A partial refund goes to the original payment method via the gateway API. If the method can't be refunded (expired card), it falls back to a manual bank refund (ops).
+- Ledger reversal plus a credit note. The customer sees X04: *Approved amount: determined after case review • Refund status: processing*.
+
+## API summary
+
+| Method | Path | Actor |
+|---|---|---|
+| POST / GET | `/payment-intents`, `/payment-intents/{id}` | Customer |
+| POST | `/webhooks/payments/{gateway}` | Gateway |
+| GET | `/orders/{id}/invoice`, `/purchase-orders/{id}/invoice`, `/invoices/{id}/pdf` | Customer, provider |
+| GET | `/provider/settlements`, `/provider/settlements/{id}`, `/provider/receivables/summary`, `/provider/payouts` | Provider |
+| GET | `/supplier/settlements`, … | Supplier |
+| — | Admin: `/admin/payments`, `/admin/refunds`, `/admin/settlements`, `/admin/payout-batches` (create, export, approve, mark-paid), `/admin/commission-rules`, `/admin/invoices`, `/admin/ledger/reports` | Staff (finance) |
+
+## Events
+`payment.initiated`/`succeeded`/`failed`/`expired`, `refund.requested`/`succeeded`/`failed`, `invoice.issued`, `settlement.scheduled`/`held`/`released`/`paid`/`failed`, `payout_batch.created`/`approved`/`paid`.
+
+## Acceptance criteria
+- [ ] No order is confirmed without gateway-verified payment, and duplicate webhooks cause no double effects.
+- [ ] Ledger invariants hold, and daily reconciliation with the gateway shows zero unexplained differences.
+- [ ] The settlement `payable_on` respects business days and holidays, and holds block payouts.
+- [ ] Commission changes apply only to new orders.
+- [ ] Invoice numbering is gap-free per issuer, and PDFs render Arabic correctly.
