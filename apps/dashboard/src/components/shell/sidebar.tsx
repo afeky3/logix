@@ -33,11 +33,9 @@ export function Sidebar() {
 
   return (
     <aside className="hidden w-60 shrink-0 border-e border-border bg-card md:flex md:flex-col">
-      <div className="flex h-14 items-center gap-2 border-b border-border px-4">
-        <div className="flex size-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-          L
-        </div>
-        <span className="font-semibold">Logix</span>
+      <div className="flex h-14 items-center border-b border-border px-4">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static brand SVG */}
+        <img src="/logo-badge.svg" alt="Logix" width={82} height={28} />
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 p-2">
         {NAV.map(({ href, key, icon: Icon }) => {
@@ -47,7 +45,7 @@ export function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-2.5 rounded-[--radius-button] px-3 py-2 text-sm font-medium transition-colors",
                 active
                   ? "bg-primary text-primary-foreground"
                   : "text-foreground/80 hover:bg-muted",
