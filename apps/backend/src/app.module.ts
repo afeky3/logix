@@ -5,6 +5,7 @@ import { envSchema } from './common/config/env.schema';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { HealthModule } from './modules/health/health.module';
 import { AppConfigModule } from './modules/app-config/app-config.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AppConfigModule } from './modules/app-config/app-config.module';
     PrismaModule,
     HealthModule,
     AppConfigModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

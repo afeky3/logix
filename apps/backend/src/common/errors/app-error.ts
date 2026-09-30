@@ -20,6 +20,9 @@ export type AppErrorCode =
   | 'BUSINESS_RULE_VIOLATION'
   | 'RATE_LIMITED'
   | 'UPSTREAM_UNAVAILABLE'
+  | 'OTP_EXPIRED'
+  | 'OTP_INVALID'
+  | 'ACCOUNT_SUSPENDED'
   | 'UNKNOWN';
 
 export interface AppErrorDetail {
@@ -45,6 +48,9 @@ const STATUS_BY_CODE: Record<AppErrorCode, number> = {
   BUSINESS_RULE_VIOLATION: 422,
   RATE_LIMITED: 429,
   UPSTREAM_UNAVAILABLE: 503,
+  OTP_EXPIRED: 409,
+  OTP_INVALID: 400,
+  ACCOUNT_SUSPENDED: 403,
   UNKNOWN: 500,
 };
 

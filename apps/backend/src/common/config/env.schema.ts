@@ -18,6 +18,14 @@ export const envSchema = z.object({
 
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
+  JWT_ACCESS_TTL: z.string().default('15m'),
+  JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
+
+  // Non-prod OTP: every phone accepts this code, no SMS provider needed yet
+  // (T-04 open). See backend/md/modules/01-auth-identity.md §Business rules.
+  OTP_TEST_CODE: z.string().length(6).default('123456'),
+
+  STAFF_MFA_ISSUER: z.string().default('Logix'),
 
   APP_VERSION_MIN_IOS: z.string().default('1.0.0'),
   APP_VERSION_MIN_ANDROID: z.string().default('1.0.0'),
