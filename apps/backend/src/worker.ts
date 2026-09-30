@@ -14,11 +14,13 @@ async function bootstrap(): Promise<void> {
   app.useLogger(app.get(Logger));
   app.get(Logger).log('Worker started (no queues registered yet)');
 
-  // `createApplicationContext` has no open handles of its own — once real
-  // BullMQ processors are registered they'll keep the event loop alive and
-  // this can go. Until then the process exits immediately and PM2 restart-
-  // loops it, so hold it open explicitly.
-  await new Promise(() => {});
+  // `createApplicationContext` has no open handles of its own, and an
+  // unresolved Promise does NOT keep Node's event loop alive on its own —
+  // only a real pending handle (timer, socket, etc.) does. Without one the
+  // process exits immediately after boot and PM2 restart-loops it. A ref'd
+  // interval is the simplest real keep-alive; drop it once BullMQ
+  // processors are registered (they hold their own handles).
+  setInterval(() => {}, 1 << 30);
 }
 
 process.on('SIGTERM', () => process.exit(0));
