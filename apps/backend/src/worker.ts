@@ -13,6 +13,15 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
   app.get(Logger).log('Worker started (no queues registered yet)');
+
+  // `createApplicationContext` has no open handles of its own — once real
+  // BullMQ processors are registered they'll keep the event loop alive and
+  // this can go. Until then the process exits immediately and PM2 restart-
+  // loops it, so hold it open explicitly.
+  await new Promise(() => {});
 }
+
+process.on('SIGTERM', () => process.exit(0));
+process.on('SIGINT', () => process.exit(0));
 
 void bootstrap();
