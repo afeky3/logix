@@ -1,16 +1,33 @@
 "use client";
 
-import { Bell, Search } from "lucide-react";
+import { Bell, LogOut, Search } from "lucide-react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { useLocale } from "next-intl";
+import { useAuth } from "@/lib/auth-context";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+
+function initials(fullName: string): string {
+  return fullName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase();
+}
 
 export function Topbar() {
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
   const other = locale === "ar" ? "en" : "ar";
+  const { staff, logout } = useAuth();
+
+  async function handleLogout() {
+    await logout();
+    router.push("/login");
+  }
 
   return (
     <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-4">
@@ -29,9 +46,17 @@ export function Topbar() {
         <Button variant="ghost" size="icon" aria-label="Notifications">
           <Bell className="size-4" />
         </Button>
-        <div className="ms-1 flex size-8 items-center justify-center rounded-full bg-muted text-xs font-medium">
-          ST
-        </div>
+        {staff && (
+          <div
+            className="ms-1 flex size-8 items-center justify-center rounded-full bg-muted text-xs font-medium"
+            title={staff.email}
+          >
+            {initials(staff.fullName)}
+          </div>
+        )}
+        <Button variant="ghost" size="icon" aria-label="Log out" onClick={handleLogout}>
+          <LogOut className="size-4" />
+        </Button>
       </div>
     </header>
   );

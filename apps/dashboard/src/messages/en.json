@@ -20,7 +20,19 @@
     "subtitle": "Logix staff console",
     "email": "Email",
     "password": "Password",
-    "submit": "Continue"
+    "submit": "Continue",
+    "invalidCredentials": "Something went wrong. Check your details and try again.",
+    "enrollTitle": "Set up two-factor authentication",
+    "enrollBody": "Scan this with an authenticator app (Google Authenticator, 1Password…), or enter the key manually.",
+    "manualKey": "Manual entry key",
+    "backupCodesTitle": "Backup codes",
+    "backupCodesBody": "Save these somewhere safe. Each one works once if you lose access to your authenticator.",
+    "continueToCode": "I've added it — continue",
+    "codeTitle": "Enter the 6-digit code",
+    "codeSubtitle": "From your authenticator app",
+    "codeLabel": "Code",
+    "verify": "Verify",
+    "back": "Back"
   },
   "home": {
     "title": "Home",

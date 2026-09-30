@@ -20,7 +20,19 @@
     "subtitle": "لوحة تحكم موظفي لوجيكس",
     "email": "البريد الإلكتروني",
     "password": "كلمة المرور",
-    "submit": "متابعة"
+    "submit": "متابعة",
+    "invalidCredentials": "حصل خطأ. تأكد من البيانات وحاول تاني.",
+    "enrollTitle": "إعداد التحقق بخطوتين",
+    "enrollBody": "امسح الكود ده بتطبيق مصادقة (زي Google Authenticator أو 1Password)، أو أدخل المفتاح يدوياً.",
+    "manualKey": "مفتاح الإدخال اليدوي",
+    "backupCodesTitle": "أكواد احتياطية",
+    "backupCodesBody": "احتفظ بالأكواد دي في مكان آمن. كل كود يشتغل مرة واحدة لو فقدت الوصول لتطبيق المصادقة.",
+    "continueToCode": "ضفته — متابعة",
+    "codeTitle": "أدخل الكود المكوّن من 6 أرقام",
+    "codeSubtitle": "من تطبيق المصادقة",
+    "codeLabel": "الكود",
+    "verify": "تحقق",
+    "back": "رجوع"
   },
   "home": {
     "title": "الرئيسية",

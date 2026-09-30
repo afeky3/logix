@@ -153,6 +153,58 @@ export class StaffAuthService {
     };
   }
 
+  /** Staff sessions hold one refresh token hash each (no separate table like
+   * identity.refresh_tokens for app sessions) — rotation just replaces it. */
+  async refresh(refreshToken: string) {
+    let payload;
+    try {
+      payload = await this.tokens.verifyStaffRefreshToken(refreshToken);
+    } catch {
+      throw new AppError('TOKEN_EXPIRED', 'Invalid or expired refresh token');
+    }
+
+    const session = await this.prisma.staff_sessions.findUnique({ where: { id: payload.sid } });
+    if (!session || session.revoked_at || session.absolute_expires_at < new Date()) {
+      throw new AppError('UNAUTHENTICATED', 'Session no longer valid');
+    }
+
+    const matches = await this.tokens.verifyRefreshTokenHash(refreshToken, session.refresh_token_hash);
+    if (!matches) {
+      await this.prisma.staff_sessions.update({
+        where: { id: session.id },
+        data: { revoked_at: new Date() },
+      });
+      throw new AppError('UNAUTHENTICATED', 'Refresh token reuse detected — session revoked');
+    }
+    if (session.idle_expires_at < new Date()) {
+      await this.prisma.staff_sessions.update({
+        where: { id: session.id },
+        data: { revoked_at: new Date() },
+      });
+      throw new AppError('UNAUTHENTICATED', 'Session idle timeout — log in again');
+    }
+
+    const issued = await this.tokens.issueStaffTokens(session.staff_user_id, session.id);
+    const now = new Date();
+    await this.prisma.staff_sessions.update({
+      where: { id: session.id },
+      data: {
+        refresh_token_hash: issued.refreshTokenHash,
+        last_seen_at: now,
+        idle_expires_at: new Date(now.getTime() + STAFF_SESSION_IDLE_MIN * 60 * 1000),
+      },
+    });
+
+    return { accessToken: issued.accessToken, refreshToken: issued.refreshToken };
+  }
+
+  async logout(sessionId: string): Promise<void> {
+    await this.prisma.staff_sessions.update({
+      where: { id: sessionId },
+      data: { revoked_at: new Date() },
+    });
+  }
+
   async me(staffId: string) {
     const staff = await this.prisma.staff_users.findUniqueOrThrow({ where: { id: staffId } });
     return {

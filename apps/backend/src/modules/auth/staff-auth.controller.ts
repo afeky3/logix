@@ -10,6 +10,7 @@ import { StaffAuthService } from './staff-auth.service';
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 const mfaSetupSchema = z.object({ mfaToken: z.string().min(10) });
 const mfaVerifySchema = z.object({ mfaToken: z.string().min(10), code: z.string().min(6) });
+const refreshSchema = z.object({ refreshToken: z.string().min(10) });
 
 /** Staff console auth — backend/md/05-api-conventions.md §1 (separate audience). */
 @Controller('admin/auth')
@@ -32,6 +33,19 @@ export class StaffAuthController {
   async mfaVerify(@Body() body: unknown, @Req() req: FastifyRequest) {
     const { mfaToken, code } = parseBody(mfaVerifySchema, body);
     return this.auth.verifyMfa(mfaToken, code, req.ip, req.headers['user-agent']);
+  }
+
+  @Post('refresh')
+  async refresh(@Body() body: unknown) {
+    const { refreshToken } = parseBody(refreshSchema, body);
+    return this.auth.refresh(refreshToken);
+  }
+
+  @Post('logout')
+  @UseGuards(StaffAuthGuard)
+  async logout(@CurrentStaff() staff: StaffTokenPayload): Promise<{ success: true }> {
+    await this.auth.logout(staff.sid);
+    return { success: true };
   }
 }
 

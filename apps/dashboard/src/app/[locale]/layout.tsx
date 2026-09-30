@@ -5,6 +5,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import { Toaster } from "sonner";
 import { locales, localeDir, type Locale } from "@/i18n/locales";
+import { AuthProvider } from "@/lib/auth-context";
 import "../globals.css";
 
 // Same typeface as the mobile app (logic-app/lib/core/theme/app_fonts.dart).
@@ -47,8 +48,10 @@ export default async function LocaleLayout({
     >
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider>
-          {children}
-          <Toaster richColors position="top-center" />
+          <AuthProvider>
+            {children}
+            <Toaster richColors position="top-center" />
+          </AuthProvider>
         </NextIntlClientProvider>
       </body>
     </html>
