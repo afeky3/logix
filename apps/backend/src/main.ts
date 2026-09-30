@@ -16,6 +16,10 @@ async function bootstrap(): Promise<void> {
 
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new AppErrorFilter());
+  // TODO(prod): restrict to known origins once the app/dashboard domains
+  // are final. Wide open for now — dev/test only, no cookies/credentials
+  // are sent cross-origin by the app (Bearer tokens in headers instead).
+  app.enableCors({ origin: true });
   app.setGlobalPrefix('api/v1', {
     exclude: [{ path: 'health/live', method: RequestMethod.GET }, { path: 'health/ready', method: RequestMethod.GET }],
   });
