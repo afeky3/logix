@@ -1,5 +1,9 @@
 {
   "app": { "name": "لوحة تحكم لوجيكس" },
+  "common": {
+    "comingSoonTitle": "قريباً",
+    "comingSoonBody": "هذا القسم لسه مش جاهز."
+  },
   "nav": {
     "home": "الرئيسية",
     "verification": "التوثيق",

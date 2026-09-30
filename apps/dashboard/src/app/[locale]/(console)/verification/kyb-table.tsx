@@ -21,12 +21,12 @@ import {
 import { cn } from "@/lib/utils";
 import { type KybRow, type KybStatus } from "./data";
 
-const STATUS_VARIANT: Record<KybStatus, "secondary" | "default" | "warning" | "success" | "destructive"> = {
-  SUBMITTED: "secondary",
-  UNDER_REVIEW: "default",
+const STATUS_VARIANT: Record<KybStatus, "neutral" | "info" | "warning" | "success" | "danger"> = {
+  SUBMITTED: "neutral",
+  UNDER_REVIEW: "info",
   CHANGES_REQUESTED: "warning",
   APPROVED: "success",
-  REJECTED: "destructive",
+  REJECTED: "danger",
 };
 
 function ageDays(iso: string): number {

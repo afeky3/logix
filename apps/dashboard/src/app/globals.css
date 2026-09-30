@@ -1,10 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Logix design tokens — planning/app/md/04-design-system.md.
-   Light theme only for now; dashboard runs on office screens. */
+/* Logix design tokens — matches logic-app/lib/core/theme exactly
+   (appColor.dart, app_dimens.dart, status_chip.dart). */
 :root {
-  --background: #f2f3f7;
+  --background: #f1f2f4;
   --foreground: #0f0f33;
 
   --card: #ffffff;
@@ -19,18 +19,30 @@
   --navy: #0f0f33;
 
   --muted: #f0f1f7;
-  --muted-foreground: #667085;
+  --muted-foreground: #70758a;
 
-  --border: #e3e6ec;
+  --border: #e5e6eb;
   --input: #dbdfe7;
   --ring: #29378e;
 
-  --destructive: #d92d20;
+  /* Status tones — exact StatusChip pairs */
+  --info-bg: #e9edfc;
+  --info-fg: #29378e;
+  --success: #216446;
+  --success-bg: #e1f2e9;
+  --warning: #7c531e;
+  --warning-bg: #fff1de;
+  --destructive: #a6382c;
+  --destructive-bg: #fce8e4;
   --destructive-foreground: #ffffff;
-  --success: #17b26a;
-  --warning: #f79009;
+  --neutral-bg: #e8e9ed;
+  --neutral-fg: #626878;
 
-  --radius: 0.625rem;
+  /* logic-app/lib/core/theme/app_dimens.dart AppRadius */
+  --radius: 0.875rem; /* 14px card */
+  --radius-button: 0.6875rem; /* 11px */
+  --radius-field: 0.625rem; /* 10px */
+  --radius-chip: 0.375rem; /* 6px */
 }
 
 @theme inline {
@@ -51,9 +63,10 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --font-sans: var(--font-ibm-plex-arabic);
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: var(--radius-field);
+  --radius-sm: var(--radius-chip);
 }
 
 body {

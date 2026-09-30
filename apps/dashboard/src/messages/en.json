@@ -1,5 +1,9 @@
 {
   "app": { "name": "Logix Console" },
+  "common": {
+    "comingSoonTitle": "Coming soon",
+    "comingSoonBody": "This section isn't built yet."
+  },
   "nav": {
     "home": "Home",
     "verification": "Verification",

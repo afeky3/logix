@@ -2,20 +2,21 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+// Same tones as logic-app/lib/core/widgets/status_chip.dart (StatusTone).
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
+  "inline-flex items-center gap-1 rounded-[--radius-chip] px-2 py-1 text-xs font-medium whitespace-nowrap",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground",
-        secondary: "border-transparent bg-muted text-muted-foreground",
-        success: "border-transparent bg-success/15 text-success",
-        warning: "border-transparent bg-warning/15 text-warning",
-        destructive: "border-transparent bg-destructive/15 text-destructive",
-        outline: "border-border text-foreground",
+        info: "bg-[--info-bg] text-[--info-fg]",
+        success: "bg-[--success-bg] text-[--success]",
+        warning: "bg-[--warning-bg] text-[--warning]",
+        neutral: "bg-[--neutral-bg] text-[--neutral-fg]",
+        danger: "bg-[--destructive-bg] text-[--destructive]",
+        outline: "border border-border text-foreground bg-transparent",
       },
     },
-    defaultVariants: { variant: "default" },
+    defaultVariants: { variant: "info" },
   },
 );
 
