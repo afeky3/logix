@@ -156,10 +156,10 @@ The client flows let providers view request files before quoting (P02 "View file
 - Full details are visible after payment.
 - Contact details in chat and quote notes are auto-masked before award.
 
-### D-17 Customer verification (New)
+### D-17 Customer verification (New) — Individuals: phone + name only, no CR
 A05 is for customers and A06 is for suppliers, providers and companies. Proposal:
-- Individuals verify by phone OTP plus full name, and add a national ID/Iqama only when needed (customs authorization).
-- Company customers complete KYB (CR + VAT + national address) before the first paid order, and can browse and request quotes while verification is pending.
+- **Individuals:** verify by phone OTP plus full name **only**. No commercial registration (CR) needed. National ID/Iqama only when needed (customs authorization).
+- **Company customers:** complete KYB (CR + VAT + national address) before the first paid order, and can browse and request quotes while verification is pending.
 
 ### D-18 Matching and validity (New)
 Proposal:

@@ -109,3 +109,4 @@ Details: [02-architecture.md](02-architecture.md).
 | [08-testing-quality.md](08-testing-quality.md) | Test strategy and release acceptance criteria |
 | [09-open-decisions.md](09-open-decisions.md) | **Master decisions log** (business and technical) |
 | [10-roadmap.md](10-roadmap.md) | Backend epics per phase with sizing |
+| [12-execution-plan.md](12-execution-plan.md) | Build order in vertical slices, app ↔ API contract, definition of done |

@@ -1,0 +1,12 @@
+{
+  "name": "logix",
+  "private": true,
+  "packageManager": "pnpm@11.18.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev:backend": "pnpm --filter @logix/backend dev",
+    "build:backend": "pnpm --filter @logix/backend build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  }
+}

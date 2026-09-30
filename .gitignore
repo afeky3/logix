@@ -1,0 +1,17 @@
+# Secrets: never commit keys or env files
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# Node / backend
+node_modules/
+dist/
+apps/backend/prisma/schema.prisma.generated
+.turbo/
+*.tsbuildinfo
+
+# logic-app is its own separate git repo (github.com/marwanhamdy1/logic-app),
+# not a submodule of this one — never track it here.
+/logic-app/
