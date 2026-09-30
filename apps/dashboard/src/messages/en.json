@@ -1,0 +1,56 @@
+{
+  "app": { "name": "Logix Console" },
+  "nav": {
+    "home": "Home",
+    "verification": "Verification",
+    "organizations": "Organizations",
+    "requests": "Requests",
+    "orders": "Orders",
+    "marketplace": "Marketplace",
+    "finance": "Finance",
+    "cases": "Cases",
+    "settings": "Settings"
+  },
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Logix staff console",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Continue"
+  },
+  "home": {
+    "title": "Home",
+    "subtitle": "Key numbers across the platform"
+  },
+  "kyb": {
+    "title": "Verification queue",
+    "subtitle": "Business and provider accounts awaiting review",
+    "columns": {
+      "submittedAt": "Submitted",
+      "organization": "Organization",
+      "workspace": "Workspace",
+      "activities": "Activities",
+      "crNumber": "CR number",
+      "city": "City",
+      "items": "Items",
+      "resubmissions": "Resubmissions",
+      "assignedTo": "Assigned to",
+      "status": "Status"
+    },
+    "status": {
+      "SUBMITTED": "Submitted",
+      "UNDER_REVIEW": "Under review",
+      "CHANGES_REQUESTED": "Changes requested",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    },
+    "unassigned": "Unassigned",
+    "assignToMe": "Assign to me",
+    "filters": {
+      "status": "Status",
+      "workspace": "Workspace",
+      "assignedToMe": "Assigned to me",
+      "unassigned": "Unassigned"
+    }
+  }
+}

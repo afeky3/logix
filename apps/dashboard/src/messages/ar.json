@@ -1,0 +1,56 @@
+{
+  "app": { "name": "لوحة تحكم لوجيكس" },
+  "nav": {
+    "home": "الرئيسية",
+    "verification": "التوثيق",
+    "organizations": "المنشآت",
+    "requests": "الطلبات",
+    "orders": "العمليات",
+    "marketplace": "السوق",
+    "finance": "المالية",
+    "cases": "القضايا",
+    "settings": "الإعدادات"
+  },
+  "login": {
+    "title": "تسجيل الدخول",
+    "subtitle": "لوحة تحكم موظفي لوجيكس",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "submit": "متابعة"
+  },
+  "home": {
+    "title": "الرئيسية",
+    "subtitle": "أهم الأرقام على مستوى المنصة"
+  },
+  "kyb": {
+    "title": "طابور التوثيق",
+    "subtitle": "حسابات الشركات ومقدمي الخدمة في انتظار المراجعة",
+    "columns": {
+      "submittedAt": "تاريخ التقديم",
+      "organization": "المنشأة",
+      "workspace": "نوع الحساب",
+      "activities": "الأنشطة",
+      "crNumber": "السجل التجاري",
+      "city": "المدينة",
+      "items": "البنود",
+      "resubmissions": "مرات إعادة التقديم",
+      "assignedTo": "المسؤول",
+      "status": "الحالة"
+    },
+    "status": {
+      "SUBMITTED": "تم التقديم",
+      "UNDER_REVIEW": "قيد المراجعة",
+      "CHANGES_REQUESTED": "مطلوب تعديل",
+      "APPROVED": "مقبول",
+      "REJECTED": "مرفوض"
+    },
+    "unassigned": "غير مُسنَد",
+    "assignToMe": "أسندها لي",
+    "filters": {
+      "status": "الحالة",
+      "workspace": "نوع الحساب",
+      "assignedToMe": "المسندة لي",
+      "unassigned": "غير المُسندة"
+    }
+  }
+}
