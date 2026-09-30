@@ -222,20 +222,36 @@ htop
 
 ---
 
-## 8. Logix Backend (Future)
+## 8. Logix Backend
 
-### Planned Deployment
+### Deployed (2026-09-30) — S0 skeleton
 
-| Item | Plan |
-|------|------|
-| **Port** | TBD (suggest 3001 or 4000) |
-| **Domain** | TBD (suggest `api.bemocode.com` or `logix-api.bemocode.com`) |
-| **Reverse Proxy** | Nginx → NestJS backend |
-| **Database** | ✅ **Created 2026-09-30:** database `logix` on the existing PostgreSQL 18.6, with its own roles (see "Logix Database" below) |
-| **Cache** | Existing Redis 8, dedicated DB index (1) + `logix:` key prefix |
-| **Socket.IO** | Same port as the API (3001), exposed on 443 via Nginx |
-| **Jobs** | BullMQ (uses Redis), separate `logix-worker` process |
-| **Processes** | PM2 (already on the server): `logix-api` and `logix-worker` from the same build |
+| Item | Status |
+|------|--------|
+| **Code** | `/home/ubuntu/logix` — `git clone https://github.com/afeky3/logix.git`, `apps/backend` (NestJS 11 + Fastify + Prisma) |
+| **Port** | 3001 (127.0.0.1 only — not exposed directly, see Nginx below) |
+| **Public access** | `https://16.16.187.248/api/...` and `/health/...` (proxied). No dedicated domain yet — TBD (`api.bemocode.com` or `logix-api.bemocode.com`), needs its own DNS + certbot cert once chosen |
+| **Reverse Proxy** | Nginx, `location /api/`, `/health/`, `/socket.io` blocks added to `/etc/nginx/sites-available/logix-ip` (proxy to `127.0.0.1:3001`) |
+| **Database** | `logix` on PostgreSQL 18.6, 157 tables across 17 schemas — see "Logix Database" below. Full schema applied from `apps/backend/migrations/001_init.sql` |
+| **Cache** | Existing Redis 8, DB index 1, `logix:` key prefix (configured, not yet used — no queues registered) |
+| **Processes (PM2)** | `logix-api` (`dist/main.js`) and `logix-worker` (`dist/worker.js`, idle — no queues yet), via `apps/backend/ecosystem.config.js`. `pm2 save` done, `pm2-logrotate` installed |
+| **Env file** | `/home/ubuntu/logix/apps/backend/.env` (mode 600, not in git) — DB URLs from `~/.logix/db.env` + freshly generated JWT secrets |
+| **Verified working** | `GET /health/live`, `GET /health/ready` (pings Postgres), `GET /api/v1/app-config` — all 200 from outside the server |
+
+**Redeploying after a code change:**
+```bash
+ssh -i planning/logix.pem ubuntu@ec2-16-16-187-248.eu-north-1.compute.amazonaws.com
+cd /home/ubuntu/logix && git pull
+cd apps/backend && pnpm install && npx prisma generate && npx nest build
+pm2 restart logix-api logix-worker
+```
+**After a new migration:** apply the new `.sql` file with `psql "$MIGRATION_DATABASE_URL"` (wrap in `BEGIN;...COMMIT;`), then `npx prisma db pull && npx prisma generate` before rebuilding.
+
+### Still open
+
+- No swap file yet (queued from §"Needed before the first deploy" below — do before ClamAV/S2).
+- No dedicated API domain/cert — currently IP + self-signed-looking cert mismatch (browsers warn, curl needs `-k`).
+- `logix-worker` has no queues registered yet (added per module as BullMQ jobs are built).
 
 > **Scope of this server.** eu-north-1 is outside Saudi Arabia, so under decision D-23 (PDPL data residency) this box is suitable for **dev/staging with synthetic data only**. Production hosting stays open until legal sign-off.
 
