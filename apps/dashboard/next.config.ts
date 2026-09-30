@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   // TODO: drop basePath once the dashboard has its own subdomain
   // (admin.logix.sa per planning/web_dashboard/md/01-tech-stack.md §2).
   // For now it shares the test server's IP under /console.
-  basePath: "/console",
+  // basePath: "/console", // TEMP disabled for debugging
 };
 
 export default withNextIntl(nextConfig);
