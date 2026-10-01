@@ -1,91 +1,50 @@
-// TODO(S2): replace with GET /admin/verification-cases (module 02-verification-kyb.md, D10).
-export type KybStatus = "SUBMITTED" | "UNDER_REVIEW" | "CHANGES_REQUESTED" | "APPROVED" | "REJECTED";
-export type Workspace = "CUSTOMER" | "SUPPLIER" | "PROVIDER";
+// Shapes returned by GET /admin/verification-cases and GET /admin/organizations/:id
+// (apps/backend/src/modules/admin-kyb). See module 02-verification-kyb.md D10.
+export type KybStatus = "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "CHANGES_REQUESTED" | "APPROVED" | "REJECTED";
+export type Workspace = "CUSTOMER" | "SUPPLIER" | "PROVIDER" | "DRIVER";
+export type ItemStatus = "PENDING" | "ACCEPTED" | "CHANGES_REQUESTED" | "REJECTED";
 
 export interface KybRow {
   id: string;
-  submittedAt: string;
-  organization: string;
+  organizationId: string;
+  organizationName: string;
+  organizationKind: "INDIVIDUAL" | "BUSINESS";
   workspace: Workspace;
   activities: string[];
-  crNumber: string;
-  city: string;
+  crNumber: string | null;
+  city: string | null;
   itemsAccepted: number;
   itemsTotal: number;
-  resubmissions: number;
+  resubmissionCount: number;
   assignedTo: string | null;
   status: KybStatus;
+  submittedAt: string | null;
 }
 
-export const mockKybRows: KybRow[] = [
-  {
-    id: "1",
-    submittedAt: "2026-09-28T08:12:00Z",
-    organization: "Al Masar Transport",
-    workspace: "PROVIDER",
-    activities: ["TRANSPORT_CARRIER"],
-    crNumber: "1010123456",
-    city: "Riyadh",
-    itemsAccepted: 2,
-    itemsTotal: 4,
-    resubmissions: 0,
-    assignedTo: null,
-    status: "UNDER_REVIEW",
-  },
-  {
-    id: "2",
-    submittedAt: "2026-09-27T14:40:00Z",
-    organization: "Gulf Freight Forwarders",
-    workspace: "PROVIDER",
-    activities: ["FREIGHT_SEA", "FREIGHT_AIR"],
-    crNumber: "4030654321",
-    city: "Jeddah",
-    itemsAccepted: 5,
-    itemsTotal: 5,
-    resubmissions: 1,
-    assignedTo: "Sara T.",
-    status: "SUBMITTED",
-  },
-  {
-    id: "3",
-    submittedAt: "2026-09-25T09:05:00Z",
-    organization: "Packaging Factory Co.",
-    workspace: "SUPPLIER",
-    activities: [],
-    crNumber: "1010987654",
-    city: "Dammam",
-    itemsAccepted: 1,
-    itemsTotal: 3,
-    resubmissions: 2,
-    assignedTo: "Omar K.",
-    status: "CHANGES_REQUESTED",
-  },
-  {
-    id: "4",
-    submittedAt: "2026-09-24T11:00:00Z",
-    organization: "Ahmed Bin Salem (customer)",
-    workspace: "CUSTOMER",
-    activities: [],
-    crNumber: "2050112233",
-    city: "Riyadh",
-    itemsAccepted: 3,
-    itemsTotal: 3,
-    resubmissions: 0,
-    assignedTo: "Sara T.",
-    status: "APPROVED",
-  },
-  {
-    id: "5",
-    submittedAt: "2026-09-20T16:22:00Z",
-    organization: "National Warehousing Ltd.",
-    workspace: "PROVIDER",
-    activities: ["WAREHOUSE"],
-    crNumber: "1010556677",
-    city: "Jeddah",
-    itemsAccepted: 0,
-    itemsTotal: 4,
-    resubmissions: 0,
-    assignedTo: null,
-    status: "REJECTED",
-  },
-];
+export interface OrgDetail {
+  id: string;
+  kind: "INDIVIDUAL" | "BUSINESS";
+  displayName: string;
+  status: string;
+  businessProfile: {
+    legalName: string;
+    tradeName: string | null;
+    crNumber: string;
+    crExpiry: string | null;
+    vatNumber: string | null;
+    verificationStatus: string;
+  } | null;
+  addresses: { id: string; district: string | null; street: string | null; buildingNumber: string | null; isRegistered: boolean }[];
+  licenses: { id: string; licenseType: string; number: string; status: string; documentId: string; expiresAt: string | null }[];
+  bankAccounts: { id: string; bankName: string; accountHolderName: string; ibanLast4: string; status: string; payoutHoldUntil: string | null }[];
+  workspaces: { workspace: Workspace; status: string }[];
+  files: { id: string; purpose: string; mimeType: string; originalName: string | null; scanStatus: string; createdAt: string }[];
+  verificationCases: {
+    id: string;
+    workspace: Workspace;
+    status: KybStatus;
+    submittedAt: string | null;
+    decidedAt: string | null;
+    items: { id: string; type: "BUSINESS_PROFILE" | "LICENSE" | "BANK_ACCOUNT" | "ACTIVITY"; refId: string; status: ItemStatus; reasonNote: string | null }[];
+  }[];
+}

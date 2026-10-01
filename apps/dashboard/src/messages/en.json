@@ -62,11 +62,56 @@
     },
     "unassigned": "Unassigned",
     "assignToMe": "Assign to me",
+    "loading": "Loading…",
+    "empty": "No verification cases in this view.",
     "filters": {
       "status": "Status",
+      "allStatuses": "All",
       "workspace": "Workspace",
       "assignedToMe": "Assigned to me",
       "unassigned": "Unassigned"
+    },
+    "detail": {
+      "back": "Back to queue",
+      "businessProfile": "Business profile",
+      "legalName": "Legal name",
+      "tradeName": "Trade name",
+      "crNumber": "CR number",
+      "crExpiry": "CR expiry",
+      "vatNumber": "VAT number",
+      "addresses": "Addresses",
+      "noAddresses": "No addresses on file.",
+      "licenses": "Licenses",
+      "noLicenses": "No licenses on file.",
+      "bankAccounts": "Bank accounts",
+      "noBankAccounts": "No bank accounts on file.",
+      "files": "Files",
+      "noFiles": "No files uploaded.",
+      "download": "Download",
+      "workspaces": "Workspaces",
+      "cases": "Verification history",
+      "items": "Items",
+      "accept": "Accept",
+      "requestChanges": "Request changes",
+      "reject": "Reject",
+      "reasonPlaceholder": "Reason (shown to the applicant)",
+      "finalDecision": "Final decision",
+      "approve": "Approve case",
+      "decisionReason": "Decision reason",
+      "submit": "Submit",
+      "itemStatus": {
+        "PENDING": "Pending",
+        "ACCEPTED": "Accepted",
+        "CHANGES_REQUESTED": "Changes requested",
+        "REJECTED": "Rejected"
+      },
+      "itemType": {
+        "BUSINESS_PROFILE": "Business profile",
+        "LICENSE": "License",
+        "BANK_ACCOUNT": "Bank account",
+        "ACTIVITY": "Activity"
+      },
+      "loadError": "Could not load this organization."
     }
   }
 }

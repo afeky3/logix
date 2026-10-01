@@ -62,11 +62,56 @@
     },
     "unassigned": "غير مُسنَد",
     "assignToMe": "أسندها لي",
+    "loading": "جارٍ التحميل…",
+    "empty": "لا توجد طلبات توثيق في هذا العرض.",
     "filters": {
       "status": "الحالة",
+      "allStatuses": "الكل",
       "workspace": "نوع الحساب",
       "assignedToMe": "المسندة لي",
       "unassigned": "غير المُسندة"
+    },
+    "detail": {
+      "back": "رجوع للطابور",
+      "businessProfile": "الملف التجاري",
+      "legalName": "الاسم القانوني",
+      "tradeName": "الاسم التجاري",
+      "crNumber": "رقم السجل التجاري",
+      "crExpiry": "تاريخ انتهاء السجل",
+      "vatNumber": "الرقم الضريبي",
+      "addresses": "العناوين",
+      "noAddresses": "لا توجد عناوين مسجلة.",
+      "licenses": "التراخيص",
+      "noLicenses": "لا توجد تراخيص مسجلة.",
+      "bankAccounts": "الحسابات البنكية",
+      "noBankAccounts": "لا توجد حسابات بنكية مسجلة.",
+      "files": "الملفات",
+      "noFiles": "لا توجد ملفات مرفوعة.",
+      "download": "تحميل",
+      "workspaces": "أنواع الحسابات",
+      "cases": "سجل التوثيق",
+      "items": "البنود",
+      "accept": "قبول",
+      "requestChanges": "طلب تعديل",
+      "reject": "رفض",
+      "reasonPlaceholder": "السبب (يظهر لمقدّم الطلب)",
+      "finalDecision": "القرار النهائي",
+      "approve": "الموافقة على الطلب",
+      "decisionReason": "سبب القرار",
+      "submit": "إرسال",
+      "itemStatus": {
+        "PENDING": "معلّق",
+        "ACCEPTED": "مقبول",
+        "CHANGES_REQUESTED": "مطلوب تعديل",
+        "REJECTED": "مرفوض"
+      },
+      "itemType": {
+        "BUSINESS_PROFILE": "الملف التجاري",
+        "LICENSE": "ترخيص",
+        "BANK_ACCOUNT": "حساب بنكي",
+        "ACTIVITY": "نشاط"
+      },
+      "loadError": "تعذّر تحميل بيانات هذه المنشأة."
     }
   }
 }

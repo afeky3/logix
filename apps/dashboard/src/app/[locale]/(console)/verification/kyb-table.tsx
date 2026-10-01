@@ -8,6 +8,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import { Link } from "@/i18n/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,9 +20,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 import { type KybRow, type KybStatus } from "./data";
 
 const STATUS_VARIANT: Record<KybStatus, "neutral" | "info" | "warning" | "success" | "danger"> = {
+  DRAFT: "neutral",
   SUBMITTED: "neutral",
   UNDER_REVIEW: "info",
   CHANGES_REQUESTED: "warning",
@@ -29,12 +32,33 @@ const STATUS_VARIANT: Record<KybStatus, "neutral" | "info" | "warning" | "succes
   REJECTED: "danger",
 };
 
-function ageDays(iso: string): number {
+function ageDays(iso: string | null): number | null {
+  if (!iso) return null;
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 }
 
-export function KybTable({ rows }: { rows: KybRow[] }) {
+export function KybTable({ rows, onAssigned }: { rows: KybRow[]; onAssigned?: () => void }) {
   const t = useTranslations("kyb");
+  const { accessToken } = useAuth();
+  const [assigning, setAssigning] = React.useState<string | null>(null);
+
+  const assignToMe = React.useCallback(
+    async (caseId: string) => {
+      if (!accessToken) return;
+      setAssigning(caseId);
+      try {
+        const res = await fetch(`/api/admin/verification-cases/${caseId}/assign`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (res.ok) onAssigned?.();
+      } finally {
+        setAssigning(null);
+      }
+    },
+    [accessToken, onAssigned],
+  );
 
   const columns = React.useMemo<ColumnDef<KybRow>[]>(
     () => [
@@ -43,6 +67,7 @@ export function KybTable({ rows }: { rows: KybRow[] }) {
         header: t("columns.submittedAt"),
         cell: ({ row }) => {
           const days = ageDays(row.original.submittedAt);
+          if (days === null) return <span className="text-muted-foreground">—</span>;
           return (
             <span
               className={cn(
@@ -56,9 +81,16 @@ export function KybTable({ rows }: { rows: KybRow[] }) {
         },
       },
       {
-        accessorKey: "organization",
+        accessorKey: "organizationName",
         header: t("columns.organization"),
-        cell: ({ row }) => <span className="font-medium">{row.original.organization}</span>,
+        cell: ({ row }) => (
+          <Link
+            href={`/verification/${row.original.organizationId}`}
+            className="font-medium text-primary hover:underline"
+          >
+            {row.original.organizationName}
+          </Link>
+        ),
       },
       { accessorKey: "workspace", header: t("columns.workspace") },
       {
@@ -80,9 +112,15 @@ export function KybTable({ rows }: { rows: KybRow[] }) {
       {
         accessorKey: "crNumber",
         header: t("columns.crNumber"),
-        cell: ({ row }) => <span className="bidi-isolate">{row.original.crNumber}</span>,
+        cell: ({ row }) => (
+          <span className="bidi-isolate">{row.original.crNumber ?? "—"}</span>
+        ),
       },
-      { accessorKey: "city", header: t("columns.city") },
+      {
+        accessorKey: "city",
+        header: t("columns.city"),
+        cell: ({ row }) => row.original.city ?? "—",
+      },
       {
         id: "items",
         header: t("columns.items"),
@@ -92,7 +130,7 @@ export function KybTable({ rows }: { rows: KybRow[] }) {
           </span>
         ),
       },
-      { accessorKey: "resubmissions", header: t("columns.resubmissions") },
+      { accessorKey: "resubmissionCount", header: t("columns.resubmissions") },
       {
         accessorKey: "assignedTo",
         header: t("columns.assignedTo"),
@@ -115,13 +153,18 @@ export function KybTable({ rows }: { rows: KybRow[] }) {
         header: "",
         cell: ({ row }) =>
           row.original.assignedTo ? null : (
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={assigning === row.original.id}
+              onClick={() => void assignToMe(row.original.id)}
+            >
               {t("assignToMe")}
             </Button>
           ),
       },
     ],
-    [t],
+    [t, assigning, assignToMe],
   );
 
   const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() });
