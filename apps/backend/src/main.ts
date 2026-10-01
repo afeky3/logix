@@ -29,7 +29,13 @@ async function bootstrap(): Promise<void> {
   // TODO(prod): restrict to known origins once the app/dashboard domains
   // are final. Wide open for now — dev/test only, no cookies/credentials
   // are sent cross-origin by the app (Bearer tokens in headers instead).
-  app.enableCors({ origin: true });
+  //
+  // `methods` matters: @fastify/cors defaults to GET,HEAD,POST only, so
+  // every PUT/PATCH/DELETE endpoint (business-profile, addresses, /me, ...)
+  // was silently failing CORS preflight from any browser client — caught
+  // live wiring the app's business-profile screen, which showed as a
+  // generic "no internet" error with no server-side trace at all.
+  app.enableCors({ origin: true, methods: 'GET,HEAD,POST,PUT,PATCH,DELETE' });
   app.setGlobalPrefix('api/v1', {
     exclude: [{ path: 'health/live', method: RequestMethod.GET }, { path: 'health/ready', method: RequestMethod.GET }],
   });
