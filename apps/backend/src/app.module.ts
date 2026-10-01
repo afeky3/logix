@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { FilesModule } from './modules/files/files.module';
 import { AdminKybModule } from './modules/admin-kyb/admin-kyb.module';
+import { RequestsModule } from './modules/requests/requests.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AdminKybModule } from './modules/admin-kyb/admin-kyb.module';
     OrganizationsModule,
     FilesModule,
     AdminKybModule,
+    RequestsModule,
   ],
 })
 export class AppModule {}
