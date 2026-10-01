@@ -294,4 +294,33 @@ export class AppAuthService {
       status: user.status,
     };
   }
+
+  async updateMe(
+    userId: string,
+    patch: { fullName?: string; email?: string; locale?: 'ar' | 'en' },
+  ) {
+    const user = await this.prisma.users.update({
+      where: { id: userId },
+      data: {
+        full_name: patch.fullName,
+        email: patch.email,
+        locale: patch.locale,
+      },
+    });
+    return {
+      id: user.id,
+      phone: user.phone_e164,
+      email: user.email,
+      fullName: user.full_name,
+      locale: user.locale,
+      status: user.status,
+    };
+  }
+
+  async updatePushToken(sessionId: string, pushToken: string): Promise<void> {
+    await this.prisma.sessions.update({
+      where: { id: sessionId },
+      data: { push_token: pushToken, push_token_updated_at: new Date() },
+    });
+  }
 }

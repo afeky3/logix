@@ -29,6 +29,8 @@ const otpVerifySchema = z.object({
 
 const refreshSchema = z.object({ refreshToken: z.string().min(10) });
 
+const pushTokenSchema = z.object({ pushToken: z.string().min(1) });
+
 /** App auth — backend/md/modules/01-auth-identity.md. */
 @Controller('auth')
 export class AppAuthController {
@@ -56,6 +58,23 @@ export class AppAuthController {
   @UseGuards(JwtAuthGuard)
   async logout(@CurrentUser() user: AppTokenPayload): Promise<{ success: true }> {
     await this.auth.logout(user.sid);
+    return { success: true };
+  }
+}
+
+/** POST /devices/push-token — updates the current session's push token. */
+@Controller('devices')
+@UseGuards(JwtAuthGuard)
+export class DevicesController {
+  constructor(private readonly auth: AppAuthService) {}
+
+  @Post('push-token')
+  async setPushToken(
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ): Promise<{ success: true }> {
+    const { pushToken } = parseBody(pushTokenSchema, body);
+    await this.auth.updatePushToken(user.sid, pushToken);
     return { success: true };
   }
 }
