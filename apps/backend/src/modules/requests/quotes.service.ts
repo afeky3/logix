@@ -8,6 +8,20 @@ import { Money } from '../../common/money/money';
 const VAT_RATE_BPS = 1500; // 15%
 const DEFAULT_VALID_HOURS = 48;
 
+/**
+ * IMPORTANT: every money/bps column in this schema uses a custom Postgres
+ * domain (`core.halalas`, `core.bps`, `core.currency_code` — see
+ * migrations/001_init.sql). Prisma's query engine cannot bind values to
+ * these as query *parameters* — every INSERT/UPDATE touching one fails
+ * with "incorrect binary data format in bind parameter N", confirmed live
+ * (reproduced with a minimal `prisma.quotes.create`, fixed by hand-writing
+ * the same INSERT with explicit `::core.halalas`/`::core.bps` casts via
+ * `$executeRaw`). Reading them back via the typed client is fine — this
+ * only affects writes. Any future module touching money (orders, invoices,
+ * payments, settlements, ledger) will hit the same thing and needs the
+ * same raw-SQL-for-the-write pattern used below.
+ */
+
 export interface QuoteInput {
   serviceFeeHalalas: number;
   chargesTotalHalalas?: number;
@@ -108,35 +122,33 @@ export class QuotesService {
     const validHours = Math.min(168, Math.max(24, input.validHours ?? DEFAULT_VALID_HOURS));
     const now = new Date();
 
-    const quote = await this.prisma.quotes.create({
-      data: {
-        id: randomUUID(),
-        request_id: requestId,
-        provider_org_id: organizationId,
-        status: 'SUBMITTED',
-        currency: 'SAR',
-        service_fee: BigInt(c.serviceFee.halalas),
-        charges_total: BigInt(c.chargesTotal.halalas),
-        subtotal: BigInt(c.subtotal.halalas),
-        vat_rate_bps: VAT_RATE_BPS,
-        vat_amount: BigInt(c.vatAmount.halalas),
-        total_amount: BigInt(c.totalAmount.halalas),
-        commission_category: 'FREIGHT_TRANSPORT',
-        commission_rate_bps_preview: c.rateBps,
-        commission_amount_preview: BigInt(c.commissionAmount.halalas),
-        commission_vat_preview: BigInt(c.commissionVat.halalas),
-        net_to_provider_preview: BigInt(c.netToProvider.halalas),
-        eta_date: input.etaDate ? new Date(input.etaDate) : undefined,
-        duration_days: input.durationDays,
-        valid_until: new Date(now.getTime() + validHours * 60 * 60 * 1000),
-        scope_included: input.scopeIncluded,
-        exclusions: input.exclusions,
-        notes: input.notes,
-        internal_cost: input.internalCostHalalas != null ? BigInt(Math.round(input.internalCostHalalas)) : undefined,
-        target_margin: input.targetMarginHalalas != null ? BigInt(Math.round(input.targetMarginHalalas)) : undefined,
-        submitted_by_user_id: userId,
-      },
-    });
+    const quoteId = randomUUID();
+    const validUntil = new Date(now.getTime() + validHours * 60 * 60 * 1000);
+    const etaDate = input.etaDate ? new Date(input.etaDate) : null;
+    const internalCost = input.internalCostHalalas != null ? BigInt(Math.round(input.internalCostHalalas)) : null;
+    const targetMargin = input.targetMarginHalalas != null ? BigInt(Math.round(input.targetMarginHalalas)) : null;
+
+    // Raw SQL — see the class-level comment on why (core.halalas/core.bps domains).
+    await this.prisma.$executeRaw`
+      INSERT INTO svc.quotes (
+        id, request_id, provider_org_id, status, currency,
+        service_fee, charges_total, subtotal, vat_rate_bps, vat_amount, total_amount,
+        commission_category, commission_rate_bps_preview, commission_amount_preview,
+        commission_vat_preview, net_to_provider_preview,
+        eta_date, duration_days, valid_until, scope_included, exclusions, notes,
+        internal_cost, target_margin, submitted_by_user_id
+      ) VALUES (
+        ${quoteId}::uuid, ${requestId}::uuid, ${organizationId}::uuid, 'SUBMITTED'::core.quote_status, 'SAR'::core.currency_code,
+        ${BigInt(c.serviceFee.halalas)}::core.halalas, ${BigInt(c.chargesTotal.halalas)}::core.halalas, ${BigInt(c.subtotal.halalas)}::core.halalas,
+        ${VAT_RATE_BPS}::core.bps, ${BigInt(c.vatAmount.halalas)}::core.halalas, ${BigInt(c.totalAmount.halalas)}::core.halalas,
+        'FREIGHT_TRANSPORT'::core.commission_category, ${c.rateBps}::core.bps, ${BigInt(c.commissionAmount.halalas)}::core.halalas,
+        ${BigInt(c.commissionVat.halalas)}::core.halalas, ${BigInt(c.netToProvider.halalas)}::core.halalas,
+        ${etaDate}::date, ${input.durationDays ?? null}::numeric, ${validUntil}::timestamptz,
+        ${input.scopeIncluded ?? null}, ${input.exclusions ?? null}, ${input.notes ?? null},
+        ${internalCost}::core.halalas, ${targetMargin}::core.signed_halalas, ${userId}::uuid
+      )
+    `;
+    const quote = await this.prisma.quotes.findUniqueOrThrow({ where: { id: quoteId } });
 
     await this.prisma.request_matches.update({
       where: { id: match.id },
@@ -166,28 +178,32 @@ export class QuotesService {
 
     const c = await this.compute(input);
     const validHours = Math.min(168, Math.max(24, input.validHours ?? DEFAULT_VALID_HOURS));
+    const validUntil = new Date(Date.now() + validHours * 60 * 60 * 1000);
+    const etaDate = input.etaDate ? new Date(input.etaDate) : null;
 
-    const quote = await this.prisma.quotes.update({
-      where: { id: quoteId },
-      data: {
-        revision: { increment: 1 },
-        service_fee: BigInt(c.serviceFee.halalas),
-        charges_total: BigInt(c.chargesTotal.halalas),
-        subtotal: BigInt(c.subtotal.halalas),
-        vat_amount: BigInt(c.vatAmount.halalas),
-        total_amount: BigInt(c.totalAmount.halalas),
-        commission_rate_bps_preview: c.rateBps,
-        commission_amount_preview: BigInt(c.commissionAmount.halalas),
-        commission_vat_preview: BigInt(c.commissionVat.halalas),
-        net_to_provider_preview: BigInt(c.netToProvider.halalas),
-        eta_date: input.etaDate ? new Date(input.etaDate) : undefined,
-        duration_days: input.durationDays,
-        valid_until: new Date(Date.now() + validHours * 60 * 60 * 1000),
-        scope_included: input.scopeIncluded,
-        exclusions: input.exclusions,
-        notes: input.notes,
-      },
-    });
+    // Raw SQL — see the class-level comment (core.halalas/core.bps domains).
+    await this.prisma.$executeRaw`
+      UPDATE svc.quotes SET
+        revision = revision + 1,
+        service_fee = ${BigInt(c.serviceFee.halalas)}::core.halalas,
+        charges_total = ${BigInt(c.chargesTotal.halalas)}::core.halalas,
+        subtotal = ${BigInt(c.subtotal.halalas)}::core.halalas,
+        vat_amount = ${BigInt(c.vatAmount.halalas)}::core.halalas,
+        total_amount = ${BigInt(c.totalAmount.halalas)}::core.halalas,
+        commission_rate_bps_preview = ${c.rateBps}::core.bps,
+        commission_amount_preview = ${BigInt(c.commissionAmount.halalas)}::core.halalas,
+        commission_vat_preview = ${BigInt(c.commissionVat.halalas)}::core.halalas,
+        net_to_provider_preview = ${BigInt(c.netToProvider.halalas)}::core.halalas,
+        eta_date = ${etaDate}::date,
+        duration_days = ${input.durationDays ?? null}::numeric,
+        valid_until = ${validUntil}::timestamptz,
+        scope_included = ${input.scopeIncluded ?? null},
+        exclusions = ${input.exclusions ?? null},
+        notes = ${input.notes ?? null},
+        updated_at = now()
+      WHERE id = ${quoteId}::uuid
+    `;
+    const quote = await this.prisma.quotes.findUniqueOrThrow({ where: { id: quoteId } });
     return this.serializeProviderView(quote);
   }
 
