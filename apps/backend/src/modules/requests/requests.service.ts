@@ -169,6 +169,22 @@ export class RequestsService {
       });
     }
 
+    // "submit validates everything and requires the accuracy consent"
+    // (05-requests-quotes-matching.md §1) — ck_requests_consent enforces it
+    // at the DB level too (SUBMITTED requires accuracy_consent_id).
+    const consent = await this.prisma.consents.create({
+      data: {
+        id: randomUUID(),
+        user_id: userId,
+        organization_id: request.customer_org_id,
+        workspace: 'CUSTOMER',
+        consent_key: 'REQUEST_ACCURACY',
+        context_type: 'service_request',
+        context_id: id,
+        context_reference: request.reference,
+      },
+    });
+
     const now = new Date();
     await this.prisma.service_requests.update({
       where: { id },
@@ -176,6 +192,7 @@ export class RequestsService {
         status: 'SUBMITTED',
         submitted_at: now,
         expires_at: new Date(now.getTime() + REQUEST_TTL_HOURS * 60 * 60 * 1000),
+        accuracy_consent_id: consent.id,
       },
     });
 
