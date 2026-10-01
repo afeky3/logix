@@ -27,8 +27,10 @@ export interface UploadInput {
  * storage directory lives outside any Nginx web root and is never served
  * statically; the only way to read a file's bytes is this module's
  * `download()`, which re-checks the caller is the uploader or an active
- * member of the owning organization on every request. No ClamAV yet
- * (S0 gap) — uploads land as `scan_status: PENDING`, not `CLEAN`.
+ * member of the owning organization on every request. No ClamAV scanning —
+ * dropped by explicit product decision (not a gap to fill later), given
+ * access is already locked down to the uploader/org members. Uploads land
+ * as `scan_status: PENDING` and stay there; nothing flips it to `CLEAN`.
  */
 @Injectable()
 export class FilesService {

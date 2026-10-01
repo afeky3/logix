@@ -249,7 +249,7 @@ pm2 restart logix-api logix-worker
 
 ### Still open
 
-- No swap file yet (queued from §"Needed before the first deploy" below — do before ClamAV/S2).
+- No swap file yet (queued from §"Needed before the first deploy" below — do before S2).
 - No dedicated API domain/cert — currently IP + self-signed-looking cert mismatch (browsers warn, curl needs `-k`).
 - `logix-worker` has no queues registered yet (added per module as BullMQ jobs are built).
 
@@ -278,7 +278,7 @@ Versions follow [backend/md/01-tech-stack.md](backend/md/01-tech-stack.md). **St
 
 | Package | Status on server | Install | Needed by | Why / sizing note |
 |---------|------------------|---------|-----------|-------------------|
-| ClamAV | ❌ missing | `sudo apt install clamav-daemon clamav-freshclam` | S2 (file uploads) | Scans every upload. **Uses ~1–1.5 GB RAM** with signatures loaded (see memory budget) |
+| ~~ClamAV~~ | Cancelled (2026-10-01) | — | — | Product decision: not going in. File access is already locked down to the uploader/org members (apps/backend files.service.ts); `scan_status` stays `PENDING` forever |
 | Chromium for PDF worker | ❌ missing | `npx playwright install --with-deps chromium` | Phase 2 (invoices, statements) | Arabic PDFs rendered in a browser engine. ~300 MB per render. Check Playwright supports Ubuntu 26.04 at that time; otherwise use the distro `chromium` |
 | Arabic fonts | Not checked | `sudo apt install fonts-noto-core` + IBM Plex Sans Arabic TTFs in `/usr/local/share/fonts`, then `fc-cache -f` | Phase 2 | Correct Arabic shaping in PDFs, matching the app typeface |
 
@@ -324,10 +324,9 @@ Current use is 1.1 GB of 3.7 GB. Estimated Logix additions:
 | `logix-api` | 200–300 MB |
 | `logix-worker` | 150–250 MB |
 | Postgres/Redis growth | 100–300 MB |
-| ClamAV (from S2) | 1,000–1,500 MB |
 | Chromium PDF render (Phase 2, spikes) | ~300 MB |
 
-API + worker fit on the current `t3.medium`. **With ClamAV and PDF rendering the box runs out of headroom**, and there is no swap today, so the kernel would kill a process (possibly one of the other apps). Add 2 GB of swap before the first Logix deploy, and resize to `t3.large` (8 GB) before S2.
+API + worker fit on the current `t3.medium`. **With PDF rendering the box can still run low on headroom**, and there is no swap today, so the kernel would kill a process (possibly one of the other apps). Add 2 GB of swap before the first Logix deploy, and resize to `t3.large` (8 GB) before S2.
 
 ### Verify Before Installing
 
