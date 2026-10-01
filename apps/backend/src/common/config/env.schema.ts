@@ -25,6 +25,15 @@ export const envSchema = z.object({
   // (T-04 open). See backend/md/modules/01-auth-identity.md §Business rules.
   OTP_TEST_CODE: z.string().length(6).default('123456'),
 
+  // T-04 is still open (no real SMS provider / sender ID yet). Until then,
+  // OTPs can be delivered over WhatsApp via a self-hosted Evolution API
+  // instance so real phones actually receive a code. 'fake' keeps the old
+  // behavior (code only logged server-side, nothing sent).
+  OTP_DELIVERY_CHANNEL: z.enum(['fake', 'whatsapp']).default('fake'),
+  EVOLUTION_API_BASE_URL: z.string().url().optional(),
+  EVOLUTION_API_KEY: z.string().optional(),
+  EVOLUTION_INSTANCE: z.string().optional(),
+
   STAFF_MFA_ISSUER: z.string().default('Logix'),
 
   APP_VERSION_MIN_IOS: z.string().default('1.0.0'),

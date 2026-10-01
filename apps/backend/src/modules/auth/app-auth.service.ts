@@ -7,6 +7,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { toBytes, bytesToUtf8 } from '../../common/util/bytes';
 import { TokenService } from './token.service';
+import { WhatsAppOtpSender } from '../../infrastructure/notifications/whatsapp-otp.sender';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 45 * 1000;
@@ -34,6 +35,7 @@ export class AppAuthService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly tokens: TokenService,
+    private readonly whatsappOtp: WhatsAppOtpSender,
   ) {}
 
   /** Best-effort E.164 normalization. Phone format is intentionally
@@ -72,9 +74,14 @@ export class AppAuthService {
     }
 
     const isProd = this.config.get<string>('NODE_ENV') === 'prod';
-    const code = isProd
-      ? String(randomInt(0, 1_000_000)).padStart(6, '0')
-      : this.config.get<string>('OTP_TEST_CODE', '123456');
+    const deliveryChannel = this.config.get<string>('OTP_DELIVERY_CHANNEL', 'fake');
+    const viaWhatsapp = deliveryChannel === 'whatsapp';
+    // Real delivery (or prod) gets a random code; plain fake mode keeps the
+    // fixed convenience code so local/dev testing doesn't need a real phone.
+    const code =
+      isProd || viaWhatsapp
+        ? String(randomInt(0, 1_000_000)).padStart(6, '0')
+        : this.config.get<string>('OTP_TEST_CODE', '123456');
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + OTP_TTL_MS);
@@ -90,11 +97,25 @@ export class AppAuthService {
         resend_available_at: resendAvailableAt,
         ip,
         device_id: deviceId,
-        sms_provider: isProd ? null : 'fake',
+        sms_provider: viaWhatsapp ? 'whatsapp-evolution' : isProd ? null : 'fake',
       },
     });
 
-    if (!isProd) {
+    if (viaWhatsapp) {
+      // Stand-in for T-04 (no real SMS provider yet) — see
+      // whatsapp-otp.sender.ts. Delivery failure must not block the
+      // request: the challenge still exists and the user can retry/resend.
+      try {
+        await this.whatsappOtp.send(phone, code);
+      } catch (err) {
+        this.logger.error(
+          `[whatsapp] Failed to deliver OTP to ${phone} (challenge ${challenge.id}): ${err instanceof Error ? err.message : err}`,
+        );
+      }
+      if (!isProd) {
+        this.logger.debug(`[whatsapp-debug] OTP for ${phone}: ${code} (challenge ${challenge.id})`);
+      }
+    } else if (!isProd) {
       // Fake SMS sink — see planning/backend/md/12-execution-plan.md §2 (T-04 open).
       this.logger.log(`[fake-sms] OTP for ${phone}: ${code} (challenge ${challenge.id})`);
     } else {
