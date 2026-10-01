@@ -56,7 +56,7 @@ const licenseSchema = z.object({
   number: z.string().min(1).max(100),
   issuedAt: z.string().optional(),
   expiresAt: z.string().optional(),
-  documentId: z.string().uuid(),
+  fileId: z.string().uuid(),
 });
 
 const workspaceQuery = z.object({

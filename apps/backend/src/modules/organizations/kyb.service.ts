@@ -50,7 +50,8 @@ export interface LicenseInput {
   number: string;
   issuedAt?: string;
   expiresAt?: string;
-  documentId: string;
+  /** id of a file already uploaded via POST /files for this organization. */
+  fileId: string;
 }
 
 @Injectable()
@@ -336,13 +337,47 @@ export class KybService {
     await this.requireMembership(orgId, userId);
 
     const file = await this.prisma.files.findFirst({
-      where: { id: input.documentId, organization_id: orgId, deleted_at: null },
+      where: { id: input.fileId, organization_id: orgId, deleted_at: null },
     });
     if (!file) {
-      throw new AppError('VALIDATION_FAILED', 'documentId must reference a file uploaded for this organization', {
-        details: [{ field: 'documentId', code: 'not_found' }],
+      throw new AppError('VALIDATION_FAILED', 'fileId must reference a file uploaded for this organization', {
+        details: [{ field: 'fileId', code: 'not_found' }],
       });
     }
+
+    // `licenses.document_id` points at the review/versioning entity
+    // (files.documents + document_versions), not at `files` directly —
+    // wrap the uploaded file in a single-version document so the normal
+    // KYB review flow (document_reviews, re-upload = new version) applies
+    // to license evidence the same way it will to everything else.
+    const documentTypeCode = input.licenseType;
+    const documentId = randomUUID();
+    const versionId = randomUUID();
+    await this.prisma.documents.create({
+      data: {
+        id: documentId,
+        owner_type: 'ORGANIZATION',
+        owner_id: orgId,
+        document_type_code: documentTypeCode,
+        status: 'UNDER_REVIEW',
+        reviewer_scope: 'STAFF',
+        visibility: 'STAFF_ONLY',
+      },
+    });
+    await this.prisma.document_versions.create({
+      data: {
+        id: versionId,
+        document_id: documentId,
+        file_id: file.id,
+        version_no: 1,
+        uploaded_by_user_id: userId,
+        uploaded_by_org_id: orgId,
+      },
+    });
+    await this.prisma.documents.update({
+      where: { id: documentId },
+      data: { current_version_id: versionId },
+    });
 
     const license = await this.prisma.licenses.create({
       data: {
@@ -353,7 +388,7 @@ export class KybService {
         number: input.number,
         issued_at: input.issuedAt ? new Date(input.issuedAt) : undefined,
         expires_at: input.expiresAt ? new Date(input.expiresAt) : undefined,
-        document_id: input.documentId,
+        document_id: documentId,
         status: 'PENDING',
       },
     });
