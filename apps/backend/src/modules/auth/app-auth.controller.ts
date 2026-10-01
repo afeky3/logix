@@ -15,8 +15,10 @@ const otpRequestSchema = z.object({
 const deviceSchema = z.object({
   id: z.string().min(1),
   platform: z.enum(['ios', 'android', 'web']),
-  appVersion: z.string().optional(),
-  pushToken: z.string().optional(),
+  // `.nullish()` (not `.optional()`) — some clients send an explicit `null`
+  // for an absent value rather than omitting the key.
+  appVersion: z.string().nullish(),
+  pushToken: z.string().nullish(),
 });
 
 const otpVerifySchema = z.object({

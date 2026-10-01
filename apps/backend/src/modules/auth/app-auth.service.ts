@@ -22,8 +22,8 @@ export interface OtpRequestResult {
 export interface VerifyDevice {
   id: string;
   platform: 'ios' | 'android' | 'web';
-  appVersion?: string;
-  pushToken?: string;
+  appVersion?: string | null;
+  pushToken?: string | null;
 }
 
 @Injectable()
