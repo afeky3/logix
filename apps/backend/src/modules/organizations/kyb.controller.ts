@@ -63,6 +63,24 @@ const workspaceQuery = z.object({
   workspace: z.enum(['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'DRIVER']).default('SUPPLIER'),
 });
 
+const activityTypes = [
+  'FREIGHT_SEA',
+  'FREIGHT_AIR',
+  'FREIGHT_LAND',
+  'EXPRESS',
+  'TRANSPORT_CARRIER',
+  'TRANSPORT_BROKER',
+  'WAREHOUSE',
+  'CUSTOMS_BROKER',
+] as const;
+
+const addActivitySchema = z.object({ activity: z.enum(activityTypes) });
+
+const documentRequirementsQuery = z.object({
+  workspace: z.enum(['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'DRIVER']).optional(),
+  activity: z.enum(activityTypes).optional(),
+});
+
 /** backend/md/modules/02-organizations-kyb-terms.md */
 @Controller('organizations/:id')
 @UseGuards(JwtAuthGuard)
@@ -131,6 +149,17 @@ export class KybController {
   @Post('licenses')
   addLicense(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
     return this.kyb.addLicense(id, user.sub, parseBody(licenseSchema, body));
+  }
+
+  @Get('activities')
+  listActivities(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.kyb.listActivities(id, user.sub);
+  }
+
+  @Post('activities')
+  addActivity(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
+    const { activity } = parseBody(addActivitySchema, body);
+    return this.kyb.addActivity(id, user.sub, activity);
   }
 
   @Get('verification')

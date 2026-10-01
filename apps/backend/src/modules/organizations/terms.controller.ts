@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { TermsService } from './terms.service';
+import { KybService } from './kyb.service';
 
 const currentTermsQuery = z.object({
   audience: z.enum(['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'PURCHASE', 'INSURANCE', 'PRIVACY']),
@@ -40,9 +41,34 @@ const recordConsentSchema = z.object({
 });
 
 /** backend/md/modules/02-organizations-kyb-terms.md §"Terms and consent" */
+const documentRequirementsQuery = z.object({
+  workspace: z.enum(['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'DRIVER']).optional(),
+  activity: z
+    .enum([
+      'FREIGHT_SEA',
+      'FREIGHT_AIR',
+      'FREIGHT_LAND',
+      'EXPRESS',
+      'TRANSPORT_CARRIER',
+      'TRANSPORT_BROKER',
+      'WAREHOUSE',
+      'CUSTOMS_BROKER',
+    ])
+    .optional(),
+});
+
 @Controller()
 export class TermsController {
-  constructor(private readonly terms: TermsService) {}
+  constructor(
+    private readonly terms: TermsService,
+    private readonly kyb: KybService,
+  ) {}
+
+  @Get('document-requirements')
+  documentRequirements(@Query() query: Record<string, unknown>) {
+    const { workspace, activity } = parseBody(documentRequirementsQuery, query);
+    return this.kyb.documentRequirements(workspace, activity);
+  }
 
   @Get('terms/current')
   current(@Query() query: Record<string, unknown>, @Req() req: FastifyRequest) {

@@ -411,6 +411,51 @@ export class KybService {
     };
   }
 
+  // ---- Provider activities ----------------------------------------------------
+
+  async listActivities(orgId: string, userId: string) {
+    await this.requireMembership(orgId, userId);
+    const rows = await this.prisma.provider_activities.findMany({ where: { organization_id: orgId } });
+    return rows.map((a) => ({
+      id: a.id,
+      activity: a.activity,
+      status: a.status,
+      approvedAt: a.approved_at,
+    }));
+  }
+
+  async addActivity(orgId: string, userId: string, activity: string) {
+    await this.requireMembership(orgId, userId);
+    const row = await this.prisma.provider_activities.upsert({
+      where: { organization_id_activity: { organization_id: orgId, activity: activity as never } },
+      create: { id: randomUUID(), organization_id: orgId, activity: activity as never, status: 'PENDING' },
+      update: {},
+    });
+    return { id: row.id, activity: row.activity, status: row.status };
+  }
+
+  // ---- Document requirements (read-only reference, drives the checklist) -----
+
+  async documentRequirements(workspace?: string, activity?: string) {
+    const rows = await this.prisma.document_requirements.findMany({
+      where: {
+        is_active: true,
+        workspace: workspace ? (workspace as never) : undefined,
+        activity: activity ? (activity as never) : undefined,
+      },
+      include: { document_types: true },
+    });
+    return rows.map((r) => ({
+      documentTypeCode: r.document_type_code,
+      nameAr: r.document_types.name_ar,
+      nameEn: r.document_types.name_en,
+      requirement: r.requirement,
+      hasExpiry: r.document_types.has_expiry,
+      allowedMime: r.document_types.allowed_mime,
+      maxSizeMb: r.document_types.max_size_mb,
+    }));
+  }
+
   // ---- Verification case -----------------------------------------------------
 
   async getVerification(orgId: string, userId: string, workspace: 'CUSTOMER' | 'SUPPLIER' | 'PROVIDER' | 'DRIVER') {
