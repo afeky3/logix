@@ -1,0 +1,11 @@
+import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { FilesController } from './files.controller';
+import { FilesService } from './files.service';
+
+@Module({
+  imports: [JwtModule.register({})], // JwtAuthGuard needs JwtService
+  controllers: [FilesController],
+  providers: [FilesService],
+})
+export class FilesModule {}

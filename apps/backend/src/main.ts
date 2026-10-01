@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { RequestMethod } from '@nestjs/common';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import fastifyMultipart from '@fastify/multipart';
 import { Logger } from 'nestjs-pino';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
@@ -13,6 +14,15 @@ async function bootstrap(): Promise<void> {
     new FastifyAdapter({ trustProxy: true }),
     { bufferLogs: true },
   );
+
+  const maxSizeMb = Number(process.env.FILES_MAX_SIZE_MB ?? 20);
+  // `as never`: pnpm hoists two slightly different `fastify` typings
+  // (this package's peer dep vs. the one Nest resolves), so the plugin's
+  // structural type doesn't quite match at compile time even though the
+  // runtime versions are compatible.
+  await app.register(fastifyMultipart as never, {
+    limits: { fileSize: maxSizeMb * 1024 * 1024, files: 1 },
+  });
 
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new AppErrorFilter());

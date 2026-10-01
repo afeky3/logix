@@ -7,6 +7,7 @@ import { HealthModule } from './modules/health/health.module';
 import { AppConfigModule } from './modules/app-config/app-config.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { FilesModule } from './modules/files/files.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
     AppConfigModule,
     AuthModule,
     OrganizationsModule,
+    FilesModule,
   ],
 })
 export class AppModule {}

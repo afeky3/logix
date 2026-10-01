@@ -36,6 +36,16 @@ export const envSchema = z.object({
 
   STAFF_MFA_ISSUER: z.string().default('Logix'),
 
+  // AES-256-GCM key (32 bytes, base64) for at-rest encryption of IBANs.
+  // No KMS/secrets setup yet (same gap as staff_users.totp_secret_enc).
+  IBAN_ENCRYPTION_KEY: z.string().min(1),
+
+  // S2 files: stored directly on this server's disk (no S3 yet), served
+  // only through an authenticated/authorized endpoint — never from a
+  // public static path. Absolute path, outside any web root.
+  FILES_STORAGE_DIR: z.string().default('/home/ubuntu/logix/storage/files'),
+  FILES_MAX_SIZE_MB: z.coerce.number().int().positive().default(20),
+
   APP_VERSION_MIN_IOS: z.string().default('1.0.0'),
   APP_VERSION_MIN_ANDROID: z.string().default('1.0.0'),
 });
