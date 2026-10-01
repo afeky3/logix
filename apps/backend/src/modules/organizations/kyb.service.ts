@@ -353,31 +353,37 @@ export class KybService {
     const documentTypeCode = input.licenseType;
     const documentId = randomUUID();
     const versionId = randomUUID();
-    await this.prisma.documents.create({
-      data: {
-        id: documentId,
-        owner_type: 'ORGANIZATION',
-        owner_id: orgId,
-        document_type_code: documentTypeCode,
-        status: 'UNDER_REVIEW',
-        reviewer_scope: 'STAFF',
-        visibility: 'STAFF_ONLY',
-      },
-    });
-    await this.prisma.document_versions.create({
-      data: {
-        id: versionId,
-        document_id: documentId,
-        file_id: file.id,
-        version_no: 1,
-        uploaded_by_user_id: userId,
-        uploaded_by_org_id: orgId,
-      },
-    });
-    await this.prisma.documents.update({
-      where: { id: documentId },
-      data: { current_version_id: versionId },
-    });
+    // `ck_documents_has_version` requires current_version_id together with
+    // any non-MISSING status, so the document starts MISSING/no-version,
+    // then the version is attached and the status flips in the same
+    // transaction — never a row with one but not the other.
+    await this.prisma.$transaction([
+      this.prisma.documents.create({
+        data: {
+          id: documentId,
+          owner_type: 'ORGANIZATION',
+          owner_id: orgId,
+          document_type_code: documentTypeCode,
+          status: 'MISSING',
+          reviewer_scope: 'STAFF',
+          visibility: 'STAFF_ONLY',
+        },
+      }),
+      this.prisma.document_versions.create({
+        data: {
+          id: versionId,
+          document_id: documentId,
+          file_id: file.id,
+          version_no: 1,
+          uploaded_by_user_id: userId,
+          uploaded_by_org_id: orgId,
+        },
+      }),
+      this.prisma.documents.update({
+        where: { id: documentId },
+        data: { current_version_id: versionId, status: 'UNDER_REVIEW' },
+      }),
+    ]);
 
     const license = await this.prisma.licenses.create({
       data: {
