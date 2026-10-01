@@ -81,6 +81,7 @@
       "vatNumber": "VAT number",
       "addresses": "Addresses",
       "noAddresses": "No addresses on file.",
+      "registeredAddress": "Registered address",
       "licenses": "Licenses",
       "noLicenses": "No licenses on file.",
       "bankAccounts": "Bank accounts",

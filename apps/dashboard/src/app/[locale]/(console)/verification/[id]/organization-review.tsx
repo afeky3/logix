@@ -180,7 +180,7 @@ export function OrganizationReview({ organizationId }: { organizationId: string 
                   {[a.district, a.street, a.buildingNumber].filter(Boolean).join(", ")}
                   {a.isRegistered && (
                     <Badge variant="outline" className="ms-2">
-                      {t("crNumber")}
+                      {t("registeredAddress")}
                     </Badge>
                   )}
                 </li>

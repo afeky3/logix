@@ -81,6 +81,7 @@
       "vatNumber": "الرقم الضريبي",
       "addresses": "العناوين",
       "noAddresses": "لا توجد عناوين مسجلة.",
+      "registeredAddress": "العنوان المسجل",
       "licenses": "التراخيص",
       "noLicenses": "لا توجد تراخيص مسجلة.",
       "bankAccounts": "الحسابات البنكية",
