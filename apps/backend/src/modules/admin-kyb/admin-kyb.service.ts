@@ -17,7 +17,21 @@ export class AdminKybService {
     const rows = await this.prisma.verification_cases.findMany({
       where: status ? { status: status as never } : undefined,
       orderBy: { submitted_at: 'asc' },
-      include: { organizations: { select: { display_name: true, kind: true } } },
+      include: {
+        organizations: {
+          select: {
+            display_name: true,
+            kind: true,
+            business_profiles: { select: { cr_number: true } },
+            addresses: { select: { district: true }, take: 1 },
+            provider_activities: { select: { activity: true } },
+          },
+        },
+        verification_items: { select: { status: true } },
+        staff_users_verification_cases_assigned_staff_idTostaff_users: {
+          select: { full_name: true },
+        },
+      },
     });
     return rows.map((c) => ({
       id: c.id,
@@ -28,6 +42,13 @@ export class AdminKybService {
       status: c.status,
       submittedAt: c.submitted_at,
       resubmissionCount: c.resubmission_count,
+      crNumber: c.organizations.business_profiles?.cr_number ?? null,
+      city: c.organizations.addresses[0]?.district ?? null,
+      activities: c.organizations.provider_activities.map((a) => a.activity),
+      itemsAccepted: c.verification_items.filter((i) => i.status === 'ACCEPTED').length,
+      itemsTotal: c.verification_items.length,
+      assignedTo:
+        c.staff_users_verification_cases_assigned_staff_idTostaff_users?.full_name ?? null,
     }));
   }
 
@@ -114,6 +135,16 @@ export class AdminKybService {
         })),
       })),
     };
+  }
+
+  async assign(staffId: string, caseId: string) {
+    const kase = await this.prisma.verification_cases.findUnique({ where: { id: caseId } });
+    if (!kase) throw new AppError('NOT_FOUND', 'Verification case not found');
+    const updated = await this.prisma.verification_cases.update({
+      where: { id: caseId },
+      data: { assigned_staff_id: staffId, status: kase.status === 'SUBMITTED' ? 'UNDER_REVIEW' : kase.status },
+    });
+    return { id: updated.id, status: updated.status, assignedStaffId: updated.assigned_staff_id };
   }
 
   async decideItem(

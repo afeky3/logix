@@ -52,6 +52,11 @@ export class AdminKybController {
     return buffer;
   }
 
+  @Post('verification-cases/:id/assign')
+  assign(@Param('id') caseId: string, @CurrentStaff() staff: StaffTokenPayload) {
+    return this.kyb.assign(staff.sub, caseId);
+  }
+
   @Post('verification-cases/:id/items/:itemId/decision')
   decideItem(
     @Param('id') caseId: string,
