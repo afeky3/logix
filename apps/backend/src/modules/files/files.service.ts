@@ -119,6 +119,16 @@ export class FilesService {
     };
   }
 
+  /** Staff review access — no membership check, any file. Stopgap until
+   * admin-kyb gets proper case-assignment scoping. */
+  async downloadAsStaff(fileId: string) {
+    const file = await this.prisma.files.findUnique({ where: { id: fileId } });
+    if (!file || file.deleted_at) throw new AppError('NOT_FOUND', 'File not found');
+    const absPath = this.resolveSafePath(file.storage_key);
+    const buffer = await readFile(absPath);
+    return { buffer, mimeType: file.mime_type, originalName: file.original_name ?? `${file.id}` };
+  }
+
   private resolveSafePath(storageKey: string): string {
     const abs = resolve(join(this.storageDir, storageKey));
     if (!abs.startsWith(this.storageDir + sep) && abs !== this.storageDir) {

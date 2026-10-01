@@ -8,6 +8,7 @@ import { AppConfigModule } from './modules/app-config/app-config.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { FilesModule } from './modules/files/files.module';
+import { AdminKybModule } from './modules/admin-kyb/admin-kyb.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { FilesModule } from './modules/files/files.module';
     AuthModule,
     OrganizationsModule,
     FilesModule,
+    AdminKybModule,
   ],
 })
 export class AppModule {}
