@@ -148,7 +148,7 @@ export class RequestsService {
       routeEstimate = resolved.estimate;
       const regions = await this.prisma.regions.findMany({
         where: { country_code: 'SA' },
-        select: { code: true, name_en: true, name_ar: true },
+        select: { code: true },
       });
       pickupRegionCode = this.maps.resolveRegionCode(resolved.pickup, regions);
       dropoffRegionCode = this.maps.resolveRegionCode(resolved.dropoff, regions);

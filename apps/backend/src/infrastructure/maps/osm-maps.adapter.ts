@@ -9,9 +9,11 @@ export interface RouteEstimate {
 export interface GeocodeResult {
   lat: number;
   lon: number;
-  /** Nominatim's `address.state` — matched against ref.regions by name
-   * (best-effort; see `resolveRegionCode`). */
-  stateName?: string;
+  /** Nominatim's `address.ISO3166-2-lvl4` — an authoritative ISO 3166-2
+   * subdivision code (e.g. `SA-01` for Riyadh), verified live against all
+   * 13 Saudi provinces (migrations/008's doc). Matched directly against
+   * `ref.regions.code` by `resolveRegionCode` — no fuzzy name matching. */
+  isoRegionCode?: string;
   countryCode?: string;
 }
 
@@ -50,14 +52,14 @@ export class OsmMapsAdapter {
       const rows = (await res.json()) as Array<{
         lat: string;
         lon: string;
-        address?: { state?: string; country_code?: string };
+        address?: { 'ISO3166-2-lvl4'?: string; country_code?: string };
       }>;
       const row = rows[0];
       if (!row) return null;
       return {
         lat: Number(row.lat),
         lon: Number(row.lon),
-        stateName: row.address?.state,
+        isoRegionCode: row.address?.['ISO3166-2-lvl4'],
         countryCode: row.address?.country_code?.toUpperCase(),
       };
     } catch (err) {
@@ -112,21 +114,13 @@ export class OsmMapsAdapter {
     return { distanceKm: km, durationMin: minutes };
   }
 
-  /** Best-effort: match Nominatim's free-text state/province name against
-   * our seeded ref.regions (Saudi's 13 regions — migrations/007). Returns
-   * `null` when it can't confidently resolve one, rather than guessing —
-   * callers treat `null` as "don't restrict matching on this request"
-   * rather than as a hard failure. */
-  resolveRegionCode(result: GeocodeResult | null, regions: { code: string; name_en: string; name_ar: string }[]): string | null {
-    if (!result?.stateName) return null;
-    const needle = result.stateName.trim().toLowerCase();
-    const match = regions.find(
-      (r) =>
-        r.name_en.toLowerCase() === needle ||
-        needle.includes(r.name_en.toLowerCase()) ||
-        r.name_en.toLowerCase().includes(needle) ||
-        r.name_ar === result.stateName,
-    );
-    return match?.code ?? null;
+  /** Nominatim's ISO code is authoritative, so this is an exact lookup
+   * against our seeded ref.regions, not a guess. Still returns `null`
+   * when geocoding didn't resolve one (e.g. outside Saudi, or the
+   * service was unreachable) — callers treat `null` as "don't restrict
+   * matching on this request" rather than as a hard failure. */
+  resolveRegionCode(result: GeocodeResult | null, regions: { code: string }[]): string | null {
+    if (!result?.isoRegionCode) return null;
+    return regions.some((r) => r.code === result.isoRegionCode) ? result.isoRegionCode : null;
   }
 }
