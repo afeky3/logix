@@ -6,11 +6,24 @@ import { OpportunitiesController } from './opportunities.controller';
 import { OpportunitiesService } from './opportunities.service';
 import { QuotesController } from './quotes.controller';
 import { QuotesService } from './quotes.service';
+import { AdminRequestsController } from './admin-requests.controller';
+import { AdminRequestsService } from './admin-requests.service';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
 
 @Module({
-  imports: [JwtModule.register({})], // JwtAuthGuard needs JwtService
-  controllers: [RequestsController, OpportunitiesController, QuotesController],
-  providers: [RequestsService, OpportunitiesService, QuotesService, ReferenceGenerator],
+  imports: [JwtModule.register({})], // JwtAuthGuard/StaffAuthGuard need JwtService
+  controllers: [
+    RequestsController,
+    OpportunitiesController,
+    QuotesController,
+    AdminRequestsController,
+  ],
+  providers: [
+    RequestsService,
+    OpportunitiesService,
+    QuotesService,
+    AdminRequestsService,
+    ReferenceGenerator,
+  ],
 })
 export class RequestsModule {}
