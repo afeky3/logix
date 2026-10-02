@@ -24,6 +24,36 @@ async function bootstrap(): Promise<void> {
     limits: { fileSize: maxSizeMb * 1024 * 1024, files: 1 },
   });
 
+  // Fastify's built-in JSON parser 400s on `Content-Type: application/json`
+  // + a zero-length body ("Body cannot be empty when content-type is set to
+  // 'application/json'"), rejected before the request ever reaches a
+  // controller — no AppError, nothing in our own logs. The app's Dio client
+  // sets that content-type on every request as a default header, including
+  // bodyless POSTs (logout, service-request submit, ...), so any endpoint
+  // with no @Body() silently 400'd. Caught live: /service-requests/:id/submit
+  // kept failing even though every field it validates was already saved —
+  // logout() masked the same bug for itself by clearing the local session
+  // regardless of the API result ("best-effort", session_cubit.dart).
+  // Treat an empty body as `{}` instead of an error.
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addContentTypeParser(
+      'application/json',
+      { parseAs: 'string' },
+      (_req: unknown, body: string, done: (err: Error | null, result?: unknown) => void) => {
+        if (!body || body.length === 0) {
+          done(null, {});
+          return;
+        }
+        try {
+          done(null, JSON.parse(body));
+        } catch (err) {
+          done(err as Error, undefined);
+        }
+      },
+    );
+
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new AppErrorFilter());
   // TODO(prod): restrict to known origins once the app/dashboard domains
