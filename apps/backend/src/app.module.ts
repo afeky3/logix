@@ -10,6 +10,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { FilesModule } from './modules/files/files.module';
 import { AdminKybModule } from './modules/admin-kyb/admin-kyb.module';
 import { RequestsModule } from './modules/requests/requests.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { RequestsModule } from './modules/requests/requests.module';
     FilesModule,
     AdminKybModule,
     RequestsModule,
+    OrdersModule,
   ],
 })
 export class AppModule {}
