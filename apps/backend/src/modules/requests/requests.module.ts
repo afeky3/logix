@@ -9,7 +9,7 @@ import { QuotesService } from './quotes.service';
 import { AdminRequestsController } from './admin-requests.controller';
 import { AdminRequestsService } from './admin-requests.service';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
-import { FakeMapsAdapter } from '../../infrastructure/maps/fake-maps.adapter';
+import { OsmMapsAdapter } from '../../infrastructure/maps/osm-maps.adapter';
 
 @Module({
   imports: [JwtModule.register({})], // JwtAuthGuard/StaffAuthGuard need JwtService
@@ -25,7 +25,7 @@ import { FakeMapsAdapter } from '../../infrastructure/maps/fake-maps.adapter';
     QuotesService,
     AdminRequestsService,
     ReferenceGenerator,
-    FakeMapsAdapter,
+    OsmMapsAdapter,
   ],
 })
 export class RequestsModule {}

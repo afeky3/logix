@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
-import { FakeMapsAdapter } from '../../infrastructure/maps/fake-maps.adapter';
+import { OsmMapsAdapter } from '../../infrastructure/maps/osm-maps.adapter';
 
 export interface TransportStepInput {
   scope?: string;
@@ -45,21 +45,21 @@ type RequestWithDetails = Prisma.service_requestsGetPayload<{
  * - No per-step required-field matrix; `submit` checks a minimal set.
  * - No PostGIS pickup/dropoff points — pickupLabel/dropoffLabel free text,
  *   same call as addresses.addressLine elsewhere in this codebase.
- * - Matching checks workspace+activity approval and licence expiry, but
- *   not service area or vehicle ownership (D-18's full eligibility list —
- *   service area can't be checked yet: org.service_areas is never
- *   populated anywhere in the app today, and requests only carry free-text
- *   pickup/dropoff labels, not a city/region to match against).
- * - Route estimate uses FakeMapsAdapter (illustrative, deterministic from
- *   the two labels) — no real geocoding provider is wired (no key/vendor
- *   decided yet).
+ * - Matching checks workspace+activity approval, licence expiry and
+ *   region-level service area (via OsmMapsAdapter's best-effort region
+ *   resolution — see runMatching's doc), but not vehicle ownership
+ *   (D-18's full eligibility list; there's no fleet module yet).
+ * - Route estimate and pickup/dropoff region come from OsmMapsAdapter
+ *   (OpenStreetMap's public Nominatim/OSRM — free, no key, no production
+ *   SLA; falls back to a synthetic estimate if they're unreachable). A
+ *   real/paid provider is still an open decision in the execution plan.
  */
 @Injectable()
 export class RequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly refs: ReferenceGenerator,
-    private readonly maps: FakeMapsAdapter,
+    private readonly maps: OsmMapsAdapter,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -134,13 +134,24 @@ export class RequestsService {
       },
     });
 
-    // Illustrative route estimate the moment both ends are known — see
-    // FakeMapsAdapter's doc for why this isn't a real geocoding call.
+    // Real-world route estimate + region resolution the moment both ends
+    // are known (OsmMapsAdapter — OpenStreetMap, falls back to a synthetic
+    // estimate if unreachable; see its class doc). The resolved regions
+    // feed runMatching's service-area check below.
     let routeEstimate: { distanceKm: number; durationMin: number } | undefined;
+    let pickupRegionCode: string | null | undefined;
+    let dropoffRegionCode: string | null | undefined;
     const pickup = input.pickupLabel ?? request.transport_request_details?.pickup_label;
     const dropoff = input.dropoffLabel ?? request.transport_request_details?.dropoff_label;
     if (pickup && dropoff) {
-      routeEstimate = this.maps.estimateRoute(pickup, dropoff);
+      const resolved = await this.maps.resolveRoute(pickup, dropoff);
+      routeEstimate = resolved.estimate;
+      const regions = await this.prisma.regions.findMany({
+        where: { country_code: 'SA' },
+        select: { code: true, name_en: true, name_ar: true },
+      });
+      pickupRegionCode = this.maps.resolveRegionCode(resolved.pickup, regions);
+      dropoffRegionCode = this.maps.resolveRegionCode(resolved.dropoff, regions);
     }
 
     await this.prisma.transport_request_details.update({
@@ -164,6 +175,8 @@ export class RequestsService {
         vehicles_count: input.vehiclesCount,
         route_distance_km: routeEstimate?.distanceKm,
         route_duration_min: routeEstimate?.durationMin,
+        pickup_region_code: pickupRegionCode,
+        dropoff_region_code: dropoffRegionCode,
       },
     });
 
@@ -220,9 +233,14 @@ export class RequestsService {
 
   /** Broadcasts to every org with an approved TRANSPORT_CARRIER/BROKER
    * activity on an ACTIVE PROVIDER workspace, excluding an org whose
-   * licence for that activity has since expired (checked below — see the
-   * class doc for what's still skipped: service area and vehicle
-   * ownership, D-18's full eligibility list). */
+   * licence for that activity has since expired, and — when the pickup
+   * region could be resolved (OsmMapsAdapter) and the org has configured
+   * ANY service area for this activity — excluding one whose configured
+   * areas don't cover it. An org with zero service areas configured is
+   * NOT excluded (most orgs today, since there's no KYB step yet to set
+   * them — treated as "covers everywhere" rather than "covers nowhere").
+   * Still skipped vs. D-18's full eligibility list: vehicle ownership
+   * (no fleet module). */
   private async runMatching(requestId: string): Promise<number> {
     const candidates = await this.prisma.provider_activities.findMany({
       where: {
@@ -248,7 +266,11 @@ export class RequestsService {
         })
       : [];
     const expiredOrgIds = new Set(expired.map((e) => e.organization_id));
-    const activities = candidates.filter((c) => !expiredOrgIds.has(c.organization_id));
+    let activities = candidates.filter((c) => !expiredOrgIds.has(c.organization_id));
+
+    if (activities.length > 0) {
+      activities = await this.filterByServiceArea(requestId, activities);
+    }
 
     if (activities.length === 0) {
       await this.prisma.service_requests.update({
@@ -273,6 +295,45 @@ export class RequestsService {
       data: { matched_provider_count: activities.length },
     });
     return activities.length;
+  }
+
+  private async filterByServiceArea<T extends { organization_id: string; activity: string }>(
+    requestId: string,
+    candidates: T[],
+  ): Promise<T[]> {
+    const details = await this.prisma.transport_request_details.findUnique({
+      where: { request_id: requestId },
+      select: { pickup_region_code: true },
+    });
+    const pickupRegion = details?.pickup_region_code;
+    if (!pickupRegion) return candidates; // couldn't resolve — don't filter on it
+
+    const areas = await this.prisma.service_areas.findMany({
+      where: {
+        provider_activities: {
+          organization_id: { in: candidates.map((c) => c.organization_id) },
+          activity: { in: ['TRANSPORT_CARRIER', 'TRANSPORT_BROKER'] },
+        },
+      },
+      select: {
+        area_type: true,
+        country_code: true,
+        region_code: true,
+        provider_activities: { select: { organization_id: true } },
+      },
+    });
+    if (areas.length === 0) return candidates; // nobody has configured any — don't restrict
+
+    const coveredOrgIds = new Set(
+      areas
+        .filter((a) => (a.area_type === 'COUNTRY' && a.country_code === 'SA') || (a.area_type === 'REGION' && a.region_code === pickupRegion))
+        .map((a) => a.provider_activities.organization_id),
+    );
+    const orgsWithAnyArea = new Set(areas.map((a) => a.provider_activities.organization_id));
+
+    // Only exclude an org that configured areas AND none of them cover
+    // this pickup region. An org that configured none stays unrestricted.
+    return candidates.filter((c) => !orgsWithAnyArea.has(c.organization_id) || coveredOrgIds.has(c.organization_id));
   }
 
   async cancel(id: string, userId: string, reasonCode?: string) {
@@ -354,6 +415,8 @@ export class RequestsService {
             vehiclesCount: d.vehicles_count,
             routeDistanceKm: d.route_distance_km ? Number(d.route_distance_km) : null,
             routeDurationMin: d.route_duration_min,
+            pickupRegionCode: d.pickup_region_code,
+            dropoffRegionCode: d.dropoff_region_code,
           }
         : null,
     };

@@ -2428,6 +2428,8 @@ model regions {
   service_areas service_areas[]
   cities        cities[]
   countries     countries       @relation(fields: [country_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  transport_request_details_transport_request_details_pickup_region_codeToregions  transport_request_details[] @relation("transport_request_details_pickup_region_codeToregions")
+  transport_request_details_transport_request_details_dropoff_region_codeToregions transport_request_details[] @relation("transport_request_details_dropoff_region_codeToregions")
 
   @@schema("ref")
 }
@@ -3043,8 +3045,12 @@ model transport_request_details {
   route_distance_km                                                 Decimal?                  @db.Decimal(8, 1)
   route_duration_min                                                Int?
   route_polyline                                                    String?
+  pickup_region_code                                                String?
+  dropoff_region_code                                               String?
   commodity_categories                                              commodity_categories?     @relation(fields: [commodity_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
   countries                                                         countries?                @relation(fields: [destination_country_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  regions_transport_request_details_pickup_region_codeToregions     regions?                  @relation("transport_request_details_pickup_region_codeToregions", fields: [pickup_region_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  regions_transport_request_details_dropoff_region_codeToregions    regions?                  @relation("transport_request_details_dropoff_region_codeToregions", fields: [dropoff_region_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
   addresses_transport_request_details_dropoff_address_idToaddresses addresses?                @relation("transport_request_details_dropoff_address_idToaddresses", fields: [dropoff_address_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   addresses_transport_request_details_pickup_address_idToaddresses  addresses?                @relation("transport_request_details_pickup_address_idToaddresses", fields: [pickup_address_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   units_of_measure                                                  units_of_measure?         @relation(fields: [quantity_unit_code], references: [code], onDelete: NoAction, onUpdate: NoAction)

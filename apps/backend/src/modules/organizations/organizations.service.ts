@@ -121,4 +121,65 @@ export class OrganizationsService {
       reviews: ratings.map((r) => ({ stars: r.stars, comment: r.comment, createdAt: r.created_at })),
     };
   }
+
+  /** Provider coverage used by matching's service-area filter
+   * (requests.service.ts `filterByServiceArea`). `areaType: 'COUNTRY'`
+   * with `countryCode: 'SA'` means "covers all of Saudi"; `'REGION'`
+   * with a `ref.regions` code covers one region only (migrations/007
+   * seeded Saudi's 13 regions — city-level isn't supported yet, see that
+   * migration's doc on why: free-text geocoding can't reliably resolve
+   * one of hundreds of city names, only the ~13 regions). */
+  async addServiceArea(
+    orgId: string,
+    userId: string,
+    activity: string,
+    areaType: 'COUNTRY' | 'REGION',
+    code: string,
+  ) {
+    await this.requireMembership(orgId, userId);
+    const providerActivity = await this.prisma.provider_activities.findUnique({
+      where: { organization_id_activity: { organization_id: orgId, activity: activity as never } },
+    });
+    if (!providerActivity) {
+      throw new AppError('NOT_FOUND', 'This organization has no such provider activity');
+    }
+    const area = await this.prisma.service_areas.create({
+      data: {
+        id: randomUUID(),
+        provider_activity_id: providerActivity.id,
+        area_type: areaType,
+        country_code: areaType === 'COUNTRY' ? code : undefined,
+        region_code: areaType === 'REGION' ? code : undefined,
+      },
+    });
+    return { id: area.id, activity, areaType: area.area_type, code };
+  }
+
+  async listServiceAreas(orgId: string, userId: string) {
+    await this.requireMembership(orgId, userId);
+    const rows = await this.prisma.service_areas.findMany({
+      where: { provider_activities: { organization_id: orgId } },
+      include: { provider_activities: { select: { activity: true } } },
+      orderBy: { created_at: 'asc' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      activity: r.provider_activities.activity,
+      areaType: r.area_type,
+      code: r.area_type === 'COUNTRY' ? r.country_code : r.region_code,
+    }));
+  }
+
+  async removeServiceArea(orgId: string, userId: string, areaId: string) {
+    await this.requireMembership(orgId, userId);
+    const area = await this.prisma.service_areas.findUnique({
+      where: { id: areaId },
+      include: { provider_activities: { select: { organization_id: true } } },
+    });
+    if (!area || area.provider_activities.organization_id !== orgId) {
+      throw new AppError('NOT_FOUND', 'Service area not found');
+    }
+    await this.prisma.service_areas.delete({ where: { id: areaId } });
+    return { success: true };
+  }
 }

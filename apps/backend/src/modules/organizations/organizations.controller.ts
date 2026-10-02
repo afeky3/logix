@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -14,6 +14,12 @@ const createOrgSchema = z.object({
 const addWorkspaceSchema = z.object({
   workspace: z.enum(['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'DRIVER']),
   activities: z.array(z.string()).optional(),
+});
+
+const addServiceAreaSchema = z.object({
+  activity: z.enum(['TRANSPORT_CARRIER', 'TRANSPORT_BROKER']),
+  areaType: z.enum(['COUNTRY', 'REGION']),
+  code: z.string().min(1),
 });
 
 /** backend/md/modules/02-organizations-kyb-terms.md */
@@ -41,5 +47,29 @@ export class OrganizationsController {
   @Get(':id/provider-profile')
   getProviderProfile(@Param('id') id: string) {
     return this.orgs.getProviderProfile(id);
+  }
+
+  @Post(':id/service-areas')
+  addServiceArea(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    const { activity, areaType, code } = parseBody(addServiceAreaSchema, body);
+    return this.orgs.addServiceArea(id, user.sub, activity, areaType, code);
+  }
+
+  @Get(':id/service-areas')
+  listServiceAreas(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.orgs.listServiceAreas(id, user.sub);
+  }
+
+  @Delete(':id/service-areas/:areaId')
+  removeServiceArea(
+    @Param('id') id: string,
+    @Param('areaId') areaId: string,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    return this.orgs.removeServiceArea(id, user.sub, areaId);
   }
 }
