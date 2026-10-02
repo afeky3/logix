@@ -114,5 +114,47 @@
       },
       "loadError": "Could not load this organization."
     }
+  },
+  "requests": {
+    "title": "Request monitor",
+    "subtitle": "All service requests (transport) — matching and quotes at a glance",
+    "loading": "Loading…",
+    "empty": "No requests in this view.",
+    "zeroQuoteOnly": "Zero-quote alerts",
+    "allStatuses": "All",
+    "columns": {
+      "submittedAt": "Submitted",
+      "reference": "Reference",
+      "customer": "Customer",
+      "route": "Route",
+      "vehicle": "Vehicle",
+      "matches": "Matches",
+      "quotes": "Quotes",
+      "status": "Status"
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted",
+      "QUOTED": "Quoted",
+      "AWAITING_PAYMENT": "Awaiting payment",
+      "CONVERTED": "Converted",
+      "EXPIRED": "Expired",
+      "CANCELLED": "Cancelled"
+    },
+    "zeroQuoteBadge": "No quotes in 24h",
+    "detail": {
+      "back": "Back to monitor",
+      "matches": "Matched providers",
+      "noMatches": "No providers matched.",
+      "quotes": "Quotes",
+      "noQuotes": "No quotes yet.",
+      "anomaly": "Price anomaly",
+      "notified": "Notified",
+      "viewed": "Viewed",
+      "quoted": "Quoted",
+      "declined": "Declined",
+      "notYet": "Not yet",
+      "loadError": "Could not load this request."
+    }
   }
 }
