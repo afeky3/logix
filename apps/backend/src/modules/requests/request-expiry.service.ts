@@ -16,8 +16,9 @@ export class RequestExpiryService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron(CronExpression.EVERY_10_SECONDS) // TEMP: diagnosing a no-op cron, reverting to EVERY_5_MINUTES after
   async sweep(): Promise<void> {
+    this.logger.log('Expiry sweep tick');
     const now = new Date();
 
     const requests = await this.prisma.service_requests.updateMany({
