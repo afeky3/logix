@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
+import { FakeMapsAdapter } from '../../infrastructure/maps/fake-maps.adapter';
 
 export interface TransportStepInput {
   scope?: string;
@@ -44,15 +45,21 @@ type RequestWithDetails = Prisma.service_requestsGetPayload<{
  * - No per-step required-field matrix; `submit` checks a minimal set.
  * - No PostGIS pickup/dropoff points — pickupLabel/dropoffLabel free text,
  *   same call as addresses.addressLine elsewhere in this codebase.
- * - Matching checks workspace+activity approval only, not service area,
- *   vehicle ownership or licence expiry (D-18's full eligibility list).
- * - No route-estimate maps proxy.
+ * - Matching checks workspace+activity approval and licence expiry, but
+ *   not service area or vehicle ownership (D-18's full eligibility list —
+ *   service area can't be checked yet: org.service_areas is never
+ *   populated anywhere in the app today, and requests only carry free-text
+ *   pickup/dropoff labels, not a city/region to match against).
+ * - Route estimate uses FakeMapsAdapter (illustrative, deterministic from
+ *   the two labels) — no real geocoding provider is wired (no key/vendor
+ *   decided yet).
  */
 @Injectable()
 export class RequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly refs: ReferenceGenerator,
+    private readonly maps: FakeMapsAdapter,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -127,6 +134,15 @@ export class RequestsService {
       },
     });
 
+    // Illustrative route estimate the moment both ends are known — see
+    // FakeMapsAdapter's doc for why this isn't a real geocoding call.
+    let routeEstimate: { distanceKm: number; durationMin: number } | undefined;
+    const pickup = input.pickupLabel ?? request.transport_request_details?.pickup_label;
+    const dropoff = input.dropoffLabel ?? request.transport_request_details?.dropoff_label;
+    if (pickup && dropoff) {
+      routeEstimate = this.maps.estimateRoute(pickup, dropoff);
+    }
+
     await this.prisma.transport_request_details.update({
       where: { request_id: id },
       data: {
@@ -146,6 +162,8 @@ export class RequestsService {
         special_handling: input.specialHandling,
         border_instructions: input.borderInstructions,
         vehicles_count: input.vehiclesCount,
+        route_distance_km: routeEstimate?.distanceKm,
+        route_duration_min: routeEstimate?.durationMin,
       },
     });
 
@@ -201,10 +219,12 @@ export class RequestsService {
   }
 
   /** Broadcasts to every org with an approved TRANSPORT_CARRIER/BROKER
-   * activity on an ACTIVE PROVIDER workspace. See the class doc for what
-   * this intentionally skips vs. the full D-18 eligibility list. */
+   * activity on an ACTIVE PROVIDER workspace, excluding an org whose
+   * licence for that activity has since expired (checked below — see the
+   * class doc for what's still skipped: service area and vehicle
+   * ownership, D-18's full eligibility list). */
   private async runMatching(requestId: string): Promise<number> {
-    const activities = await this.prisma.provider_activities.findMany({
+    const candidates = await this.prisma.provider_activities.findMany({
       where: {
         activity: { in: ['TRANSPORT_CARRIER', 'TRANSPORT_BROKER'] },
         status: 'APPROVED',
@@ -212,6 +232,23 @@ export class RequestsService {
       },
       select: { organization_id: true, activity: true },
     });
+
+    // A licence valid at approval time can expire later without being
+    // renewed — exclude those orgs. An org with no licence row at all for
+    // this activity is NOT excluded (KYB may have approved it without one
+    // on file yet); this only catches a licence that's now overdue.
+    const expired = candidates.length
+      ? await this.prisma.licenses.findMany({
+          where: {
+            organization_id: { in: candidates.map((c) => c.organization_id) },
+            related_activity: { in: ['TRANSPORT_CARRIER', 'TRANSPORT_BROKER'] },
+            expires_at: { lt: new Date() },
+          },
+          select: { organization_id: true },
+        })
+      : [];
+    const expiredOrgIds = new Set(expired.map((e) => e.organization_id));
+    const activities = candidates.filter((c) => !expiredOrgIds.has(c.organization_id));
 
     if (activities.length === 0) {
       await this.prisma.service_requests.update({
@@ -315,6 +352,8 @@ export class RequestsService {
             specialHandling: d.special_handling,
             borderInstructions: d.border_instructions,
             vehiclesCount: d.vehicles_count,
+            routeDistanceKm: d.route_distance_km ? Number(d.route_distance_km) : null,
+            routeDurationMin: d.route_duration_min,
           }
         : null,
     };

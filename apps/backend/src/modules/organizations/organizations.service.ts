@@ -75,4 +75,50 @@ export class OrganizationsService {
 
     return { id: ws.id, workspace: ws.workspace, status: ws.status };
   }
+
+  /** Public-facing profile a buyer sees for a provider they got a quote
+   * from (Q03 → "view provider"). No membership required — this is
+   * intentionally visible to any authenticated user, same as a quote's
+   * providerName already is. Never exposes contacts/documents (D-16). */
+  async getProviderProfile(organizationId: string) {
+    const org = await this.prisma.organizations.findUnique({
+      where: { id: organizationId },
+      include: {
+        org_workspaces: { where: { workspace: 'PROVIDER' } },
+        provider_activities: { where: { status: 'APPROVED' } },
+      },
+    });
+    if (!org || org.org_workspaces.length === 0) {
+      throw new AppError('NOT_FOUND', 'Provider not found');
+    }
+    const workspace = org.org_workspaces[0];
+
+    const [completedOrders, totalOrders, ratings] = await Promise.all([
+      this.prisma.orders.count({ where: { provider_org_id: organizationId, status: 'SCHEDULED' } }),
+      this.prisma.orders.count({ where: { provider_org_id: organizationId } }),
+      this.prisma.ratings.findMany({
+        where: { ratee_org_id: organizationId, status: 'PUBLISHED' },
+        orderBy: { created_at: 'desc' },
+        take: 5,
+        select: { stars: true, comment: true, created_at: true },
+      }),
+    ]);
+
+    return {
+      id: org.id,
+      displayName: org.display_name,
+      verified: workspace.status === 'ACTIVE',
+      memberSince: workspace.activated_at,
+      ratingAvg: org.rating_avg ? Number(org.rating_avg) : null,
+      ratingCount: org.rating_count,
+      // "Completed" has no real meaning yet — there's no post-SCHEDULED
+      // completion flow built (module 06's broader scope). This counts
+      // orders that reached SCHEDULED (the furthest state reachable today)
+      // instead of fabricating a completion number.
+      scheduledOrdersCount: completedOrders,
+      totalOrdersCount: totalOrders,
+      activities: org.provider_activities.map((a) => a.activity),
+      reviews: ratings.map((r) => ({ stars: r.stars, comment: r.comment, createdAt: r.created_at })),
+    };
+  }
 }

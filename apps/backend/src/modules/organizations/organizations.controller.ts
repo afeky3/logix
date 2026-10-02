@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -36,5 +36,10 @@ export class OrganizationsController {
   ) {
     const { workspace, activities } = parseBody(addWorkspaceSchema, body);
     return this.orgs.addWorkspace(id, user.sub, workspace, activities);
+  }
+
+  @Get(':id/provider-profile')
+  getProviderProfile(@Param('id') id: string) {
+    return this.orgs.getProviderProfile(id);
   }
 }

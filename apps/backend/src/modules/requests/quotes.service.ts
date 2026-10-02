@@ -301,6 +301,7 @@ export class QuotesService {
   private serializeCustomerView(q: {
     id: string;
     request_id: string;
+    provider_org_id: string;
     status: string;
     total_amount: bigint;
     vat_amount: bigint;
@@ -317,6 +318,7 @@ export class QuotesService {
       id: q.id,
       requestId: q.request_id,
       status: q.status,
+      providerId: q.provider_org_id,
       providerName: q.organizations.display_name,
       providerRating: q.organizations.rating_avg ? Number(q.organizations.rating_avg) : null,
       providerCompletedJobs: q.organizations.completed_jobs_count,

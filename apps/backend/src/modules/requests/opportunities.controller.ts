@@ -51,4 +51,14 @@ export class OpportunitiesController {
     const { organizationId, question } = parseBody(askSchema, body);
     return this.opportunities.ask(user.sub, organizationId, requestId, question);
   }
+
+  @Get(':requestId/questions')
+  listQuestions(
+    @Param('requestId') requestId: string,
+    @Query() query: Record<string, unknown>,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    const { organizationId } = parseBody(orgQuery, query);
+    return this.opportunities.listQuestions(user.sub, organizationId, requestId);
+  }
 }

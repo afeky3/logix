@@ -92,6 +92,31 @@ export class OpportunitiesService {
     return { id: row.id, question: row.question, createdAt: row.created_at };
   }
 
+  /** Same Q&A thread the customer sees (requests.service.ts
+   * `listQuestions`) — every matched provider sees every question asked
+   * on this request, not just their own, same fairness rule as the
+   * customer view ("a provider asked", not which one). */
+  async listQuestions(userId: string, organizationId: string, requestId: string) {
+    await this.requireMembership(organizationId, userId);
+    const match = await this.prisma.request_matches.findUnique({
+      where: { request_id_provider_org_id: { request_id: requestId, provider_org_id: organizationId } },
+    });
+    if (!match) throw new AppError('FORBIDDEN', 'This request was not matched to your organization');
+
+    const rows = await this.prisma.request_questions.findMany({
+      where: { request_id: requestId },
+      orderBy: { created_at: 'asc' },
+    });
+    return rows.map((q) => ({
+      id: q.id,
+      question: q.question,
+      answer: q.answer,
+      answeredAt: q.answered_at,
+      createdAt: q.created_at,
+      askedByMe: q.provider_org_id === organizationId,
+    }));
+  }
+
   private serializeSummary(m: {
     id: string;
     activity: string;
