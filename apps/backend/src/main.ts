@@ -24,36 +24,6 @@ async function bootstrap(): Promise<void> {
     limits: { fileSize: maxSizeMb * 1024 * 1024, files: 1 },
   });
 
-  // Fastify's built-in JSON parser 400s on `Content-Type: application/json`
-  // + a zero-length body ("Body cannot be empty when content-type is set to
-  // 'application/json'"), rejected before the request ever reaches a
-  // controller — no AppError, nothing in our own logs. The app's Dio client
-  // sets that content-type on every request as a default header, including
-  // bodyless POSTs (logout, service-request submit, ...), so any endpoint
-  // with no @Body() silently 400'd. Caught live: /service-requests/:id/submit
-  // kept failing even though every field it validates was already saved —
-  // logout() masked the same bug for itself by clearing the local session
-  // regardless of the API result ("best-effort", session_cubit.dart).
-  // Treat an empty body as `{}` instead of an error.
-  app
-    .getHttpAdapter()
-    .getInstance()
-    .addContentTypeParser(
-      'application/json',
-      { parseAs: 'string' },
-      (_req: unknown, body: string, done: (err: Error | null, result?: unknown) => void) => {
-        if (!body || body.length === 0) {
-          done(null, {});
-          return;
-        }
-        try {
-          done(null, JSON.parse(body));
-        } catch (err) {
-          done(err as Error, undefined);
-        }
-      },
-    );
-
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new AppErrorFilter());
   // TODO(prod): restrict to known origins once the app/dashboard domains
@@ -79,6 +49,43 @@ async function bootstrap(): Promise<void> {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document);
   }
+
+  // Nest's FastifyAdapter registers its own default 'application/json'
+  // content-type parser lazily, inside `init()` (which `listen()` calls
+  // internally) — adding ours any earlier collides with it
+  // (FST_ERR_CTP_ALREADY_PRESENT, crashes on boot). So: init() first to let
+  // Nest register its default, then swap it out, then listen().
+  //
+  // Why swap it at all: Fastify's default json parser 400s on
+  // `Content-Type: application/json` + a zero-length body ("Body cannot be
+  // empty..."), rejected before the request reaches any controller — no
+  // AppError, nothing in our own logs. The app's Dio client sets that
+  // content-type as a default header on every request (dio_factory.dart),
+  // including bodyless POSTs (logout, service-request submit, ...), so any
+  // endpoint with no @Body() silently 400'd. Caught live:
+  // /service-requests/:id/submit kept failing even though every field it
+  // validates was already correctly saved — logout() masked the same bug
+  // for itself by clearing the local session regardless of the API call's
+  // result ("best-effort", session_cubit.dart). Treat an empty body as
+  // `{}` instead of an error.
+  await app.init();
+  const fastify = app.getHttpAdapter().getInstance();
+  fastify.removeContentTypeParser('application/json');
+  fastify.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_req: unknown, body: string, done: (err: Error | null, result?: unknown) => void) => {
+      if (!body || body.length === 0) {
+        done(null, {});
+        return;
+      }
+      try {
+        done(null, JSON.parse(body));
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    },
+  );
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3001;
   await app.listen(port, '127.0.0.1');
