@@ -14,7 +14,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(WorkerModule, { bufferLogs: true });
   const logger = new Logger('Worker');
   app.useLogger(logger);
-  logger.log('Worker started — request/quote expiry sweep registered (every 5 min)');
+  logger.log('Worker started — request/quote and payment-hold expiry sweeps registered (every 5 min)');
 
   // `createApplicationContext` has no open handles of its own, and an
   // unresolved Promise does NOT keep Node's event loop alive on its own —

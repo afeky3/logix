@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { RequestExpiryService } from './modules/requests/request-expiry.service';
+import { PaymentExpiryService } from './modules/orders/payment-expiry.service';
 
 /**
  * Cron jobs live here, not in AppModule — AppModule is bootstrapped by
@@ -11,6 +12,6 @@ import { RequestExpiryService } from './modules/requests/request-expiry.service'
  */
 @Module({
   imports: [ScheduleModule.forRoot(), PrismaModule],
-  providers: [RequestExpiryService],
+  providers: [RequestExpiryService, PaymentExpiryService],
 })
 export class WorkerModule {}

@@ -21,6 +21,13 @@ const PAYMENT_HOLD_MINUTES = 30;
  * core.bps, core.currency_code) that broke Prisma's parameter binding in
  * S3 (quotes.service.ts) — every write here goes through raw SQL with
  * explicit casts from the start.
+ *
+ * The 30-minute payment hold (`PAYMENT_HOLD_MINUTES`) is enforced by
+ * payment-expiry.service.ts's worker-only cron: an unpaid intent past
+ * `expires_at` is marked EXPIRED, its order VOID, and the quote/request
+ * reopened (or expired too, if their own windows closed meanwhile) —
+ * otherwise a customer who never pays blocks everyone else from
+ * accepting a different quote on that request forever.
  */
 @Injectable()
 export class OrdersService {
