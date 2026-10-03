@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { ReferenceGenerator } from '../../common/references/reference-generator';
 
 const PAYMENT_HOLD_MINUTES = 30;
 
@@ -31,7 +32,10 @@ const PAYMENT_HOLD_MINUTES = 30;
  */
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly refs: ReferenceGenerator,
+  ) {}
 
   private async requireMembership(orgId: string, userId: string) {
     const membership = await this.prisma.memberships.findUnique({
@@ -79,6 +83,12 @@ export class OrdersService {
 
     const orderId = randomUUID();
     const now = new Date();
+    // Its own reference, not request.reference — a request can get more
+    // than one order attempt now (payment-expiry.service.ts voids one and
+    // reopens the quote/request), and orders.reference is unique, so a
+    // second attempt reusing the request's reference would collide with
+    // the first (dead) order that already holds it.
+    const orderReference = await this.refs.next('LX');
 
     await this.prisma.$transaction([
       this.prisma.quotes.update({
@@ -97,7 +107,7 @@ export class OrdersService {
           commission_category, commission_rule_id, commission_rate_bps,
           commission_amount, commission_vat_amount, net_to_provider
         ) VALUES (
-          ${orderId}::uuid, ${request.reference}, ${request.service_type}::core.service_type,
+          ${orderId}::uuid, ${orderReference}, ${request.service_type}::core.service_type,
           ${request.id}::uuid, ${quoteId}::uuid,
           ${request.customer_org_id}::uuid, ${quote.provider_org_id}::uuid,
           'PENDING_PAYMENT'::core.order_status, ${quote.currency}::core.currency_code,
