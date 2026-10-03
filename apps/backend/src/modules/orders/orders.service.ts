@@ -52,10 +52,12 @@ export class OrdersService {
     await this.requireMembership(request.customer_org_id, userId);
 
     // Idempotent: a second accept on an already-accepted quote just
-    // returns the existing order instead of erroring (orders.accepted_quote_id
-    // is unique at the DB level too, so double-accept can never create two).
-    const existingOrder = await this.prisma.orders.findUnique({
-      where: { accepted_quote_id: quoteId },
+    // returns the existing LIVE order instead of erroring — a VOID one
+    // (payment-expiry.service.ts) doesn't count, it's a dead attempt;
+    // the DB's partial unique index (migrations/009) only blocks a second
+    // *live* order per quote/request, not a VOID one.
+    const existingOrder = await this.prisma.orders.findFirst({
+      where: { accepted_quote_id: quoteId, status: { not: 'VOID' } },
     });
     if (existingOrder) return this.getOrder(userId, existingOrder.id);
 

@@ -2648,6 +2648,13 @@ model orders {
   id                                                        String                  @id @db.Uuid
   reference                                                 String                  @unique
   service_type                                              service_type
+  // @unique here is a Prisma-client-only annotation (needed for the 1:1
+  // relations below to validate) — it does NOT reflect the real DB
+  // constraint, which is a partial unique index excluding VOID orders
+  // (migrations/009; this schema is hand-maintained from raw SQL
+  // migrations, not `prisma migrate`, so this never gets pushed to
+  // Postgres). Look these up with findFirst + an explicit status filter,
+  // not findUnique — see orders.service.ts `acceptQuote`.
   request_id                                                String                  @unique @db.Uuid
   accepted_quote_id                                         String                  @unique @db.Uuid
   customer_org_id                                           String                  @db.Uuid
