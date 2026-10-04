@@ -1,6 +1,15 @@
 import { getTranslations } from "next-intl/server";
-import { Truck } from "lucide-react";
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { OrdersMonitorClient } from "./orders-monitor-client";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "orders" });
+  return { title: t("title") };
+}
 
 export default async function OrdersPage({
   params,
@@ -8,6 +17,15 @@ export default async function OrdersPage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "nav" });
-  return <ComingSoon title={t("orders")} icon={Truck} locale={locale} />;
+  const t = await getTranslations({ locale, namespace: "orders" });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-semibold">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+      </div>
+      <OrdersMonitorClient />
+    </div>
+  );
 }

@@ -156,5 +156,47 @@
       "notYet": "لم يحدث بعد",
       "loadError": "تعذّر تحميل بيانات هذا الطلب."
     }
+  },
+  "orders": {
+    "title": "مراقبة الطلبات",
+    "subtitle": "العروض المقبولة من الدفع وحتى التأكيد",
+    "loading": "جارٍ التحميل…",
+    "empty": "لا توجد طلبات في هذا العرض.",
+    "allStatuses": "الكل",
+    "columns": {
+      "createdAt": "تاريخ الإنشاء",
+      "reference": "الرقم المرجعي",
+      "customer": "العميل",
+      "provider": "مزوّد الخدمة",
+      "total": "الإجمالي",
+      "paymentStatus": "حالة الدفع",
+      "status": "الحالة"
+    },
+    "status": {
+      "PENDING_PAYMENT": "بانتظار الدفع",
+      "VOID": "انتهت مهلة الدفع",
+      "CONFIRMED": "مؤكد",
+      "SCHEDULED": "مجدول",
+      "IN_PROGRESS": "قيد التنفيذ",
+      "ACTIVE": "نشط",
+      "CLOSING": "قيد الإغلاق",
+      "AWAITING_ACCEPTANCE": "بانتظار القبول",
+      "DISPUTED": "محل نزاع",
+      "COMPLETED": "مكتمل",
+      "CANCELLATION_REQUESTED": "طلب إلغاء",
+      "CANCELLED": "ملغي"
+    },
+    "detail": {
+      "back": "العودة للمراقبة",
+      "fromRequest": "من الطلب",
+      "amounts": "المبالغ",
+      "total": "الإجمالي",
+      "vat": "ضريبة القيمة المضافة",
+      "commission": "العمولة",
+      "netToProvider": "صافي مزوّد الخدمة",
+      "paymentIntents": "محاولات الدفع",
+      "noPaymentIntents": "لا توجد محاولات دفع بعد.",
+      "loadError": "تعذّر تحميل بيانات هذا الطلب."
+    }
   }
 }

@@ -156,5 +156,47 @@
       "notYet": "Not yet",
       "loadError": "Could not load this request."
     }
+  },
+  "orders": {
+    "title": "Order monitor",
+    "subtitle": "Accepted quotes through payment and confirmation",
+    "loading": "Loading…",
+    "empty": "No orders in this view.",
+    "allStatuses": "All",
+    "columns": {
+      "createdAt": "Created",
+      "reference": "Reference",
+      "customer": "Customer",
+      "provider": "Provider",
+      "total": "Total",
+      "paymentStatus": "Payment",
+      "status": "Status"
+    },
+    "status": {
+      "PENDING_PAYMENT": "Awaiting payment",
+      "VOID": "Payment expired",
+      "CONFIRMED": "Confirmed",
+      "SCHEDULED": "Scheduled",
+      "IN_PROGRESS": "In progress",
+      "ACTIVE": "Active",
+      "CLOSING": "Closing",
+      "AWAITING_ACCEPTANCE": "Awaiting acceptance",
+      "DISPUTED": "Disputed",
+      "COMPLETED": "Completed",
+      "CANCELLATION_REQUESTED": "Cancellation requested",
+      "CANCELLED": "Cancelled"
+    },
+    "detail": {
+      "back": "Back to monitor",
+      "fromRequest": "From request",
+      "amounts": "Amounts",
+      "total": "Total",
+      "vat": "VAT",
+      "commission": "Commission",
+      "netToProvider": "Net to provider",
+      "paymentIntents": "Payment attempts",
+      "noPaymentIntents": "No payment attempts yet.",
+      "loadError": "Could not load this order."
+    }
   }
 }
