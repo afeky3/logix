@@ -432,12 +432,20 @@ export class KybService {
     }));
   }
 
-  async addActivity(orgId: string, userId: string, activity: string) {
+  async addActivity(orgId: string, userId: string, activity: string, otherText?: string) {
     await this.requireMembership(orgId, userId);
+    // "OTHER" keeps the customer's own wording next to the enum value.
+    const text = activity === 'OTHER' ? otherText ?? null : null;
     const row = await this.prisma.provider_activities.upsert({
       where: { organization_id_activity: { organization_id: orgId, activity: activity as never } },
-      create: { id: randomUUID(), organization_id: orgId, activity: activity as never, status: 'PENDING' },
-      update: {},
+      create: {
+        id: randomUUID(),
+        organization_id: orgId,
+        activity: activity as never,
+        status: 'PENDING',
+        other_text: text,
+      },
+      update: { other_text: text },
     });
     return { id: row.id, activity: row.activity, status: row.status };
   }

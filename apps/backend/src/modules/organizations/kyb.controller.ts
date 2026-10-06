@@ -72,9 +72,12 @@ const activityTypes = [
   'TRANSPORT_BROKER',
   'WAREHOUSE',
   'CUSTOMS_BROKER',
+  'OTHER',
 ] as const;
 
-const addActivitySchema = z.object({ activity: z.enum(activityTypes) });
+const addActivitySchema = z
+  .object({ activity: z.enum(activityTypes), otherText: z.string().trim().min(2).max(120).optional() })
+  .refine((v) => v.activity !== 'OTHER' || !!v.otherText, { message: 'otherText is required for OTHER', path: ['otherText'] });
 
 const documentRequirementsQuery = z.object({
   workspace: z.enum(['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'DRIVER']).optional(),
@@ -158,8 +161,8 @@ export class KybController {
 
   @Post('activities')
   addActivity(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
-    const { activity } = parseBody(addActivitySchema, body);
-    return this.kyb.addActivity(id, user.sub, activity);
+    const { activity, otherText } = parseBody(addActivitySchema, body);
+    return this.kyb.addActivity(id, user.sub, activity, otherText);
   }
 
   @Get('verification')

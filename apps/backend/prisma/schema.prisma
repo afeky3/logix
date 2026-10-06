@@ -2072,6 +2072,7 @@ model provider_activities {
   id                String                 @id @db.Uuid
   organization_id   String                 @db.Uuid
   activity          provider_activity_type
+  other_text         String?
   status            activity_status        @default(PENDING)
   approved_at       DateTime?              @db.Timestamptz(6)
   suspended_at      DateTime?              @db.Timestamptz(6)
@@ -4388,6 +4389,7 @@ enum provider_activity_type {
   TRANSPORT_BROKER
   WAREHOUSE
   CUSTOMS_BROKER
+  OTHER
 
   @@schema("core")
 }
