@@ -266,11 +266,12 @@ export class AppAuthService {
   }
 
   private async issueSession(
-    user: { id: string; phone_e164: string; full_name: string | null; locale: string },
+    user: { id: string; phone_e164: string; full_name: string | null; locale: string; status: string },
     device: VerifyDevice,
     ip: string | undefined,
     isNewUser: boolean,
   ) {
+    if (user.status !== 'ACTIVE') throw new AppError('ACCOUNT_SUSPENDED', 'This account is suspended.');
     const session = await this.prisma.sessions.create({
       data: {
         id: randomUUID(),
@@ -334,6 +335,10 @@ export class AppAuthService {
     const session = await this.prisma.sessions.findUnique({ where: { id: payload.sid } });
     if (!session || session.revoked_at) {
       throw new AppError('UNAUTHENTICATED', 'Session no longer valid');
+    }
+    const owner = await this.prisma.users.findUnique({ where: { id: session.user_id }, select: { status: true } });
+    if (owner?.status !== 'ACTIVE') {
+      throw new AppError('ACCOUNT_SUSPENDED', 'This account is suspended.');
     }
 
     const stored = await this.prisma.refresh_tokens.findFirst({

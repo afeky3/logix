@@ -1,5 +1,7 @@
 {
-  "app": { "name": "Logix Console" },
+  "app": {
+    "name": "Logix Console"
+  },
   "common": {
     "comingSoonTitle": "Coming soon",
     "comingSoonBody": "This section isn't built yet."
@@ -13,7 +15,8 @@
     "marketplace": "Marketplace",
     "finance": "Finance",
     "cases": "Cases",
-    "settings": "Settings"
+    "settings": "Settings",
+    "accounts": "Accounts"
   },
   "login": {
     "title": "Sign in",
@@ -199,5 +202,43 @@
       "noPaymentIntents": "No payment attempts yet.",
       "loadError": "Could not load this order."
     }
+  },
+  "accounts": {
+    "title": "Accounts",
+    "subtitle": "All app accounts: find a user, see their organizations and verification, suspend or reactivate",
+    "searchPlaceholder": "Search by name, phone or email",
+    "allStatuses": "All",
+    "status": {
+      "ACTIVE": "Active",
+      "SUSPENDED": "Suspended",
+      "DELETED": "Deleted"
+    },
+    "count": "{count} accounts",
+    "loading": "Loading…",
+    "empty": "No accounts match this search.",
+    "noName": "(no name)",
+    "never": "Never",
+    "columns": {
+      "name": "Name",
+      "phone": "Phone",
+      "email": "Email",
+      "status": "Status",
+      "lastLogin": "Last login",
+      "created": "Created"
+    },
+    "detailTitle": "Account",
+    "backToList": "Back to accounts",
+    "suspend": "Suspend account",
+    "reactivate": "Reactivate",
+    "suspendConfirm": "Suspend this account? The user is signed out and cannot sign in until it is reactivated.",
+    "hasPassword": "Password set",
+    "yes": "Yes",
+    "no": "No",
+    "activeSessions": "Active sessions",
+    "organizationsTitle": "Organizations",
+    "noOrganizations": "No organizations yet.",
+    "workspacesTitle": "Workspaces",
+    "casesTitle": "Verification",
+    "none": "None"
   }
 }

@@ -1,5 +1,7 @@
 {
-  "app": { "name": "لوحة تحكم لوجيكس" },
+  "app": {
+    "name": "لوحة تحكم لوجيكس"
+  },
   "common": {
     "comingSoonTitle": "قريباً",
     "comingSoonBody": "هذا القسم لسه مش جاهز."
@@ -13,7 +15,8 @@
     "marketplace": "السوق",
     "finance": "المالية",
     "cases": "القضايا",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "accounts": "الحسابات"
   },
   "login": {
     "title": "تسجيل الدخول",
@@ -199,5 +202,43 @@
       "noPaymentIntents": "لا توجد محاولات دفع بعد.",
       "loadError": "تعذّر تحميل بيانات هذا الطلب."
     }
+  },
+  "accounts": {
+    "title": "الحسابات",
+    "subtitle": "كل حسابات التطبيق: ابحث عن مستخدم، وشوف منظماته والتحقق بتاعه، وأوقف الحساب أو فعّله",
+    "searchPlaceholder": "ابحث بالاسم أو الموبايل أو الإيميل",
+    "allStatuses": "الكل",
+    "status": {
+      "ACTIVE": "نشط",
+      "SUSPENDED": "موقوف",
+      "DELETED": "محذوف"
+    },
+    "count": "{count} حساب",
+    "loading": "جاري التحميل…",
+    "empty": "مفيش حسابات مطابقة للبحث.",
+    "noName": "(بدون اسم)",
+    "never": "لم يسجل دخول",
+    "columns": {
+      "name": "الاسم",
+      "phone": "الموبايل",
+      "email": "الإيميل",
+      "status": "الحالة",
+      "lastLogin": "آخر دخول",
+      "created": "تاريخ الإنشاء"
+    },
+    "detailTitle": "الحساب",
+    "backToList": "رجوع للحسابات",
+    "suspend": "إيقاف الحساب",
+    "reactivate": "تفعيل الحساب",
+    "suspendConfirm": "توقف الحساب ده؟ المستخدم هيتسجل خروجه ومش هيقدر يدخل لحد ما يتفعّل تاني.",
+    "hasPassword": "باسورد متسجل",
+    "yes": "أيوه",
+    "no": "لأ",
+    "activeSessions": "جلسات نشطة",
+    "organizationsTitle": "المنظمات",
+    "noOrganizations": "مفيش منظمات لسه.",
+    "workspacesTitle": "الـ Workspaces",
+    "casesTitle": "التحقق",
+    "none": "ولا واحد"
   }
 }

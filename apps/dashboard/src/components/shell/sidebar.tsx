@@ -13,6 +13,7 @@ import {
   Wallet,
   Gavel,
   Settings,
+  Users,
 } from "lucide-react";
 
 const NAV = [
@@ -21,6 +22,7 @@ const NAV = [
   { href: "/organizations", key: "organizations", icon: Building2 },
   { href: "/requests", key: "requests", icon: ClipboardList },
   { href: "/orders", key: "orders", icon: Truck },
+  { href: "/accounts", key: "accounts", icon: Users },
   { href: "/marketplace", key: "marketplace", icon: Store },
   { href: "/finance", key: "finance", icon: Wallet },
   { href: "/cases", key: "cases", icon: Gavel },

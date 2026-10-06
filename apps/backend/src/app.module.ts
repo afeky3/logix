@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { FilesModule } from './modules/files/files.module';
 import { AdminKybModule } from './modules/admin-kyb/admin-kyb.module';
+import { AdminAccountsModule } from './modules/admin-accounts/admin-accounts.module';
 import { RequestsModule } from './modules/requests/requests.module';
 import { OrdersModule } from './modules/orders/orders.module';
 
@@ -31,6 +32,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     OrganizationsModule,
     FilesModule,
     AdminKybModule,
+    AdminAccountsModule,
     RequestsModule,
     OrdersModule,
   ],
