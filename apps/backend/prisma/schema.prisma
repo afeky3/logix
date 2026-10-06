@@ -4026,6 +4026,7 @@ enum file_purpose {
   AVATAR
   EXPORT
   GENERATED_PDF
+  SHIPMENT_DOCUMENT
 
   @@schema("core")
 }
