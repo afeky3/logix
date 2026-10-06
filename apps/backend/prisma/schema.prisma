@@ -4733,6 +4733,7 @@ enum verification_item_type {
   LICENSE
   BANK_ACCOUNT
   ACTIVITY
+  DOCUMENT
 
   @@schema("core")
 }

@@ -110,7 +110,8 @@
         "BUSINESS_PROFILE": "الملف التجاري",
         "LICENSE": "ترخيص",
         "BANK_ACCOUNT": "حساب بنكي",
-        "ACTIVITY": "نشاط"
+        "ACTIVITY": "نشاط",
+        "DOCUMENT": "مستند مرفوع"
       },
       "loadError": "تعذّر تحميل بيانات هذه المنشأة."
     }

@@ -301,6 +301,7 @@ export class KybService {
         payout_hold_until: new Date(Date.now() + BANK_PAYOUT_HOLD_HOURS * 60 * 60 * 1000),
       },
     });
+    await this.queueVerificationItem(orgId, 'BANK_ACCOUNT', account.id);
 
     return {
       id: account.id,
@@ -398,6 +399,13 @@ export class KybService {
         status: 'PENDING',
       },
     });
+
+    // The upload already queued its file as a DOCUMENT item; the license is
+    // the thing staff should decide on, so swap the file item for it.
+    await this.prisma.verification_items.deleteMany({
+      where: { item_type: 'DOCUMENT', ref_id: file.id },
+    });
+    await this.queueVerificationItem(orgId, 'LICENSE', license.id);
 
     return {
       id: license.id,
@@ -512,7 +520,7 @@ export class KybService {
     }
 
     const existing = await this.prisma.verification_cases.findFirst({
-      where: { organization_id: orgId, workspace, status: { in: ['DRAFT', 'CHANGES_REQUESTED'] } },
+      where: { organization_id: orgId, workspace, status: { in: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'CHANGES_REQUESTED'] } },
       orderBy: { created_at: 'desc' },
     });
 
@@ -529,7 +537,7 @@ export class KybService {
       update: {
         status: 'SUBMITTED',
         submitted_at: new Date(),
-        resubmission_count: { increment: existing ? 1 : 0 },
+        resubmission_count: { increment: existing?.status === 'CHANGES_REQUESTED' ? 1 : 0 },
       },
     });
 
@@ -555,4 +563,66 @@ export class KybService {
 
     return { id: kase.id, status: kase.status, submittedAt: kase.submitted_at };
   }
+
+  /**
+   * Puts one piece of verification evidence in front of the admin queue
+   * right away: a DOCUMENT item (uploaded file) or a LICENSE / BANK_ACCOUNT
+   * item (record just added). It joins the org's open case for its newest
+   * workspace, or opens a SUBMITTED case if there is none. The explicit
+   * `verification/submit` step still works and reuses the same case.
+   *
+   * Returns null when the org has no workspace yet (nothing to attach to);
+   * the submit call picks the record up later in that case.
+   */
+  async queueVerificationItem(
+    orgId: string,
+    itemType: 'DOCUMENT' | 'LICENSE' | 'BANK_ACCOUNT',
+    refId: string,
+  ) {
+    const ws = await this.prisma.org_workspaces.findFirst({
+      where: { organization_id: orgId },
+      orderBy: { created_at: 'desc' },
+    });
+    if (!ws) return null;
+
+    const open = await this.prisma.verification_cases.findFirst({
+      where: { organization_id: orgId, workspace: ws.workspace, status: { in: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'CHANGES_REQUESTED'] } },
+      orderBy: { created_at: 'desc' },
+    });
+
+    let caseId: string;
+    if (!open) {
+      caseId = randomUUID();
+      await this.prisma.verification_cases.create({
+        data: {
+          id: caseId,
+          organization_id: orgId,
+          workspace: ws.workspace,
+          status: 'SUBMITTED',
+          submitted_at: new Date(),
+        },
+      });
+    } else {
+      caseId = open.id;
+      if (open.status === 'DRAFT' || open.status === 'CHANGES_REQUESTED') {
+        await this.prisma.verification_cases.update({
+          where: { id: caseId },
+          data: {
+            status: 'SUBMITTED',
+            submitted_at: new Date(),
+            resubmission_count: { increment: open.status === 'CHANGES_REQUESTED' ? 1 : 0 },
+          },
+        });
+      }
+    }
+
+    await this.prisma.verification_items.upsert({
+      where: { case_id_item_type_ref_id: { case_id: caseId, item_type: itemType, ref_id: refId } },
+      create: { id: randomUUID(), case_id: caseId, item_type: itemType, ref_id: refId },
+      update: { status: 'PENDING' },
+    });
+
+    return { caseId };
+  }
 }
+

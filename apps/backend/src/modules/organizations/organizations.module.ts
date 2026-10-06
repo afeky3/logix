@@ -11,5 +11,6 @@ import { KybService } from './kyb.service';
   imports: [JwtModule.register({})], // JwtAuthGuard needs JwtService; secret passed per call
   controllers: [OrganizationsController, TermsController, KybController],
   providers: [OrganizationsService, TermsService, KybService],
+  exports: [KybService],
 })
 export class OrganizationsModule {}

@@ -45,6 +45,6 @@ export interface OrgDetail {
     status: KybStatus;
     submittedAt: string | null;
     decidedAt: string | null;
-    items: { id: string; type: "BUSINESS_PROFILE" | "LICENSE" | "BANK_ACCOUNT" | "ACTIVITY"; refId: string; status: ItemStatus; reasonNote: string | null }[];
+    items: { id: string; type: "BUSINESS_PROFILE" | "LICENSE" | "BANK_ACCOUNT" | "ACTIVITY" | "DOCUMENT"; refId: string; status: ItemStatus; reasonNote: string | null }[];
   }[];
 }

@@ -384,6 +384,40 @@ export class AppAuthService {
     });
   }
 
+  /**
+   * The four toggles on the app's settings screen, mapped to msg categories.
+   * A category with no row yet uses the default: on, except promotions.
+   */
+  private static readonly NOTIFY_TOGGLES = {
+    orders: { category: 'ORDERS', defaultOn: true },
+    offers: { category: 'QUOTES', defaultOn: true },
+    messages: { category: 'MESSAGES', defaultOn: true },
+    promotions: { category: 'MARKETING', defaultOn: false },
+  } as const;
+
+  async getNotificationPreferences(userId: string) {
+    const rows = await this.prisma.notification_preferences.findMany({ where: { user_id: userId } });
+    const out: Record<string, boolean> = {};
+    for (const [key, t] of Object.entries(AppAuthService.NOTIFY_TOGGLES)) {
+      const row = rows.find((r) => r.category === t.category);
+      out[key] = row ? row.push_enabled : t.defaultOn;
+    }
+    return out;
+  }
+
+  async updateNotificationPreferences(userId: string, input: Partial<Record<keyof typeof AppAuthService.NOTIFY_TOGGLES, boolean>>) {
+    for (const [key, t] of Object.entries(AppAuthService.NOTIFY_TOGGLES)) {
+      const value = input[key as keyof typeof input];
+      if (value === undefined) continue;
+      await this.prisma.notification_preferences.upsert({
+        where: { user_id_category: { user_id: userId, category: t.category } },
+        create: { user_id: userId, category: t.category, push_enabled: value },
+        update: { push_enabled: value },
+      });
+    }
+    return this.getNotificationPreferences(userId);
+  }
+
   async me(userId: string) {
     const user = await this.prisma.users.findUniqueOrThrow({ where: { id: userId } });
     return {

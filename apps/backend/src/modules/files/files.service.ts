@@ -5,6 +5,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { KybService } from '../organizations/kyb.service';
 
 const ALLOWED_MIME: Record<string, string> = {
   'application/pdf': '.pdf',
@@ -37,6 +38,7 @@ export class FilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly kyb: KybService,
   ) {}
 
   private get storageDir(): string {
@@ -87,6 +89,11 @@ export class FilesService {
         scan_status: 'PENDING',
       },
     });
+
+    // Verification evidence goes straight to the admin queue (not on submit).
+    if (input.purpose === 'DOCUMENT') {
+      await this.kyb.queueVerificationItem(input.organizationId, 'DOCUMENT', file.id);
+    }
 
     return {
       id: file.id,

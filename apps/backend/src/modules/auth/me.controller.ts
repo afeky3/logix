@@ -1,10 +1,19 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Put, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { AppAuthService } from './app-auth.service';
+
+const notifyPrefsSchema = z
+  .object({
+    orders: z.boolean().optional(),
+    offers: z.boolean().optional(),
+    messages: z.boolean().optional(),
+    promotions: z.boolean().optional(),
+  })
+  .strict();
 
 const patchMeSchema = z.object({
   fullName: z.string().min(1).max(200).optional(),
@@ -31,5 +40,15 @@ export class MeController {
   @Get('workspaces')
   workspaces(@CurrentUser() user: AppTokenPayload) {
     return this.auth.getWorkspaces(user.sub);
+  }
+
+  @Get('notification-preferences')
+  notificationPreferences(@CurrentUser() user: AppTokenPayload) {
+    return this.auth.getNotificationPreferences(user.sub);
+  }
+
+  @Put('notification-preferences')
+  updateNotificationPreferences(@Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
+    return this.auth.updateNotificationPreferences(user.sub, parseBody(notifyPrefsSchema, body));
   }
 }

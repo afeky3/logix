@@ -110,7 +110,8 @@
         "BUSINESS_PROFILE": "Business profile",
         "LICENSE": "License",
         "BANK_ACCOUNT": "Bank account",
-        "ACTIVITY": "Activity"
+        "ACTIVITY": "Activity",
+        "DOCUMENT": "Uploaded document"
       },
       "loadError": "Could not load this organization."
     }
