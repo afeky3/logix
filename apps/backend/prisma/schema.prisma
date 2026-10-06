@@ -972,6 +972,7 @@ model users {
   id                                                                      String                      @id @db.Uuid
   phone_e164                                                              String                      @unique(map: "ux_users_phone")
   email                                                                   String?                     @db.Citext
+  password_hash                                                           String?
   full_name                                                               String?
   locale                                                                  app_locale                  @default(ar)
   status                                                                  user_status                 @default(ACTIVE)

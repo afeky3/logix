@@ -29,6 +29,27 @@ const otpVerifySchema = z.object({
 
 const refreshSchema = z.object({ refreshToken: z.string().min(10) });
 
+/** At least 8 characters, with both a letter and a digit. */
+const passwordSchema = z
+  .string()
+  .min(8)
+  .max(128)
+  .regex(/[A-Za-z]/, 'must contain a letter')
+  .regex(/\d/, 'must contain a digit');
+
+const passwordLoginSchema = z.object({
+  identifier: z.string().min(3).max(254), // phone or email
+  password: z.string().min(1).max(128),
+  device: deviceSchema,
+});
+
+const passwordSetSchema = z.object({
+  challengeId: z.string().uuid(),
+  code: z.string().length(6),
+  password: passwordSchema,
+  email: z.string().email().max(254).optional(),
+});
+
 const pushTokenSchema = z.object({ pushToken: z.string().min(1) });
 
 /** App auth — backend/md/modules/01-auth-identity.md. */
@@ -46,6 +67,18 @@ export class AppAuthController {
   async verifyOtp(@Body() body: unknown, @Req() req: FastifyRequest) {
     const { challengeId, code, device } = parseBody(otpVerifySchema, body);
     return this.auth.verifyOtp(challengeId, code, device, req.ip);
+  }
+
+  @Post('password/login')
+  async passwordLogin(@Body() body: unknown, @Req() req: FastifyRequest) {
+    const { identifier, password, device } = parseBody(passwordLoginSchema, body);
+    return this.auth.loginWithPassword(identifier, password, device, req.ip);
+  }
+
+  @Post('password/set')
+  async setPassword(@Body() body: unknown) {
+    const { challengeId, code, password, email } = parseBody(passwordSetSchema, body);
+    return this.auth.setPassword(challengeId, code, password, email);
   }
 
   @Post('refresh')

@@ -170,6 +170,79 @@ export class AppAuthService {
       });
     }
 
+    return this.issueSession(user, device, ip, isNewUser);
+  }
+
+  /** Password login: phone or email + password. Same session/tokens as OTP. */
+  async loginWithPassword(identifier: string, password: string, device: VerifyDevice, ip?: string) {
+    const user = identifier.includes('@')
+      ? await this.prisma.users.findFirst({ where: { email: identifier.toLowerCase() } })
+      : await this.prisma.users.findUnique({ where: { phone_e164: this.normalizePhone(identifier) } });
+    // Same error for "no such user" and "wrong password" — don't leak which.
+    const ok =
+      user?.password_hash != null && (await argon2.verify(user.password_hash, password));
+    if (!user || !ok) {
+      throw new AppError('UNAUTHENTICATED', 'Invalid phone/email or password');
+    }
+    await this.prisma.users.update({ where: { id: user.id }, data: { last_login_at: new Date() } });
+    return this.issueSession(user, device, ip, false);
+  }
+
+  /** Set or reset the password. Proves control of the phone with a fresh
+   * OTP challenge (the same one requestOtp issues), optionally setting the
+   * email login identifier too. */
+  async setPassword(
+    challengeId: string,
+    code: string,
+    password: string,
+    email?: string,
+  ) {
+    const challenge = await this.prisma.otp_challenges.findUnique({ where: { id: challengeId } });
+    if (!challenge) throw new AppError('VALIDATION_FAILED', 'Unknown verification challenge');
+    if (challenge.verified_at) throw new AppError('OTP_INVALID', 'This code has already been used');
+    if (challenge.locked_at || challenge.attempts >= challenge.max_attempts) {
+      throw new AppError('OTP_INVALID', 'Too many attempts. Request a new code.');
+    }
+    if (challenge.expires_at < new Date()) throw new AppError('OTP_EXPIRED', 'This code has expired');
+
+    const ok = await argon2.verify(bytesToUtf8(challenge.code_hash), code);
+    if (!ok) {
+      const attempts = challenge.attempts + 1;
+      await this.prisma.otp_challenges.update({
+        where: { id: challengeId },
+        data: { attempts, locked_at: attempts >= challenge.max_attempts ? new Date() : undefined },
+      });
+      throw new AppError('OTP_INVALID', 'Incorrect code');
+    }
+    await this.prisma.otp_challenges.update({
+      where: { id: challengeId },
+      data: { verified_at: new Date() },
+    });
+
+    const user = await this.prisma.users.findUnique({ where: { phone_e164: challenge.phone_e164 } });
+    if (!user) throw new AppError('NOT_FOUND', 'No account for this phone');
+    if (email) {
+      const taken = await this.prisma.users.findFirst({
+        where: { email: email.toLowerCase(), NOT: { id: user.id } },
+      });
+      if (taken) throw new AppError('BUSINESS_RULE_VIOLATION', 'This email is already used by another account');
+    }
+    await this.prisma.users.update({
+      where: { id: user.id },
+      data: {
+        password_hash: await argon2.hash(password),
+        ...(email ? { email: email.toLowerCase() } : {}),
+      },
+    });
+    return { success: true };
+  }
+
+  private async issueSession(
+    user: { id: string; phone_e164: string; full_name: string | null; locale: string },
+    device: VerifyDevice,
+    ip: string | undefined,
+    isNewUser: boolean,
+  ) {
     const session = await this.prisma.sessions.create({
       data: {
         id: randomUUID(),
