@@ -67,6 +67,23 @@ export class AdminRequestsService {
     });
     if (!r) throw new AppError('NOT_FOUND', 'Request not found');
 
+    // Storage and customs details live in their own tables (items 3 and 7).
+    const storageRows = r.service_type === 'WAREHOUSING'
+      ? await this.prisma.$queryRaw<Record<string, unknown>[]>`
+          SELECT kind, city, city_other, storage_kind, pallets, entry_date, parcel_reference, requested_date, requirements
+          FROM svc.storage_request_details WHERE request_id = ${id}::uuid
+        `
+      : [];
+    const customsDetails = r.service_type === 'CUSTOMS'
+      ? await this.prisma.customs_request_details.findUnique({ where: { request_id: id } })
+      : null;
+    const customsDocs = r.service_type === 'CUSTOMS'
+      ? await this.prisma.$queryRaw<{ doc_type: string; original_name: string | null }[]>`
+          SELECT cd.doc_type, f.original_name FROM svc.customs_documents cd
+          JOIN files.files f ON f.id = cd.file_id WHERE cd.request_id = ${id}::uuid
+        `
+      : [];
+
     return {
       id: r.id,
       reference: r.reference,
@@ -80,6 +97,10 @@ export class AdminRequestsService {
       expiresAt: r.expires_at,
       flags: r.flags,
       transport: r.transport_request_details,
+      storage: storageRows[0] ?? null,
+      customs: customsDetails
+        ? { movement: customsDetails.movement, billOfLadingNo: customsDetails.bill_of_lading_no, documents: customsDocs }
+        : null,
       matches: r.request_matches.map((m) => ({
         providerName: m.organizations.display_name,
         notifiedAt: m.notified_at,

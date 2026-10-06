@@ -158,7 +158,10 @@
       "quoted": "Quoted",
       "declined": "Declined",
       "notYet": "Not yet",
-      "loadError": "Could not load this request."
+      "loadError": "Could not load this request.",
+      "storageTitle": "Storage request",
+      "customsTitle": "Customs request",
+      "noFile": "not uploaded"
     }
   },
   "orders": {

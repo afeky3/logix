@@ -49,6 +49,8 @@ export interface RequestQuote {
 export interface RequestDetail extends Omit<RequestRow, "vehicleTypeCode" | "matchedProviderCount" | "quoteCount" | "isZeroQuoteAlert"> {
   notes: string | null;
   transport: Record<string, unknown> | null;
+  storage?: Record<string, unknown> | null;
+  customs?: { movement: string | null; billOfLadingNo: string | null; documents: { doc_type: string; original_name: string | null }[] } | null;
   matches: RequestMatch[];
   quotes: RequestQuote[];
 }

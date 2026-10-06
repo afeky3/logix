@@ -65,6 +65,36 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
         </Badge>
       </div>
 
+      {data.storage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("storageTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm">
+            {Object.entries(data.storage).map(([k, v]) => (
+              <p key={k}>
+                <span className="text-muted-foreground">{k}: </span>
+                {v === null ? "—" : String(v)}
+              </p>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {data.customs && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("customsTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm">
+            <p>{data.customs.movement ?? "—"} · {data.customs.billOfLadingNo ?? "—"}</p>
+            {data.customs.documents.map((d) => (
+              <p key={d.doc_type}>{d.doc_type}: {d.original_name ?? t("noFile")}</p>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>{t("matches")}</CardTitle>
