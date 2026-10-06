@@ -7,7 +7,7 @@ import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { RequestsService } from './requests.service';
 
 const createSchema = z.object({
-  serviceType: z.enum(['TRANSPORT', 'CUSTOMS']),
+  serviceType: z.enum(['TRANSPORT', 'CUSTOMS', 'WAREHOUSING']),
   organizationId: z.string().uuid(),
 });
 
