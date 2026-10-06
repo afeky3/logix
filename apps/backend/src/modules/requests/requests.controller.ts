@@ -7,7 +7,7 @@ import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { RequestsService } from './requests.service';
 
 const createSchema = z.object({
-  serviceType: z.literal('TRANSPORT'),
+  serviceType: z.enum(['TRANSPORT', 'CUSTOMS']),
   organizationId: z.string().uuid(),
 });
 
@@ -49,8 +49,8 @@ export class RequestsController {
 
   @Post()
   create(@Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
-    const { organizationId } = parseBody(createSchema, body);
-    return this.requests.createDraft(user.sub, organizationId);
+    const { organizationId, serviceType } = parseBody(createSchema, body);
+    return this.requests.createDraft(user.sub, organizationId, serviceType);
   }
 
   @Get()

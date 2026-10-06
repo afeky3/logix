@@ -15,6 +15,7 @@ const FILE_PURPOSES = new Set([
   'AVATAR',
   'EXPORT',
   'GENERATED_PDF',
+  'SHIPMENT_DOCUMENT',
 ]);
 
 /**

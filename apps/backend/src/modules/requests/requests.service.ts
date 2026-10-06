@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { CustomsService } from '../customs/customs.service';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
 import { OsmMapsAdapter } from '../../infrastructure/maps/osm-maps.adapter';
 
@@ -60,6 +61,7 @@ export class RequestsService {
     private readonly prisma: PrismaService,
     private readonly refs: ReferenceGenerator,
     private readonly maps: OsmMapsAdapter,
+    private readonly customs: CustomsService,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -71,14 +73,14 @@ export class RequestsService {
     }
   }
 
-  async createDraft(userId: string, organizationId: string) {
+  async createDraft(userId: string, organizationId: string, serviceType: 'TRANSPORT' | 'CUSTOMS' = 'TRANSPORT') {
     await this.requireMembership(organizationId, userId);
     const reference = await this.refs.next('LX');
     const request = await this.prisma.service_requests.create({
       data: {
         id: randomUUID(),
         reference,
-        service_type: 'TRANSPORT',
+        service_type: serviceType,
         customer_org_id: organizationId,
         created_by_user_id: userId,
         status: 'DRAFT',
@@ -190,10 +192,14 @@ export class RequestsService {
     }
     const d = request.transport_request_details;
     const missing: string[] = [];
-    if (!d?.vehicle_type_code) missing.push('vehicleTypeCode');
-    if (!d?.pickup_label) missing.push('pickupLabel');
-    if (!d?.dropoff_label) missing.push('dropoffLabel');
-    if (!request.service_date && !d?.transport_date) missing.push('serviceDate');
+    if (request.service_type === 'CUSTOMS') {
+      await this.customs.assertReadyToSubmit(id);
+    } else {
+      if (!d?.vehicle_type_code) missing.push('vehicleTypeCode');
+      if (!d?.pickup_label) missing.push('pickupLabel');
+      if (!d?.dropoff_label) missing.push('dropoffLabel');
+      if (!request.service_date && !d?.transport_date) missing.push('serviceDate');
+    }
     if (missing.length) {
       throw new AppError('VALIDATION_FAILED', `Missing required fields: ${missing.join(', ')}`, {
         details: missing.map((m) => ({ field: m, code: 'required' })),
