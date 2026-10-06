@@ -221,6 +221,49 @@ export class OrdersService {
     return this.serializeOrder(orderId);
   }
 
+  /**
+   * Provider marks the service done (client round 1, item 14). The order closes
+   * and the provider's settlement is scheduled from the order's stored amounts.
+   * Paying the customer's money out is a later step; this writes the record.
+   * Idempotent: a second call returns the order without a second settlement.
+   */
+  async completeOrder(userId: string, orderId: string, organizationId: string) {
+    await this.requireMembership(organizationId, userId);
+    const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError('NOT_FOUND', 'Order not found');
+    if (order.provider_org_id !== organizationId) {
+      throw new AppError('FORBIDDEN', 'Not the provider on this order');
+    }
+    if (order.status === 'COMPLETED') return this.serializeOrder(orderId);
+    if (!['SCHEDULED', 'IN_PROGRESS', 'ACTIVE'].includes(order.status)) {
+      throw new AppError('INVALID_STATE_TRANSITION', 'Order is not in progress');
+    }
+
+    // fin.settlements requires STL- followed by 7+ digits; the generator gives 6, so pad one zero.
+    const reference = 'STL-0' + (await this.refs.next('STL')).slice(4);
+    // Matches ck_settlement_net: net = gross - commission - commission VAT.
+    const settlementNet = order.service_fee - order.commission_amount - order.commission_vat_amount;
+    await this.prisma.$executeRaw`
+      UPDATE svc.orders SET status = 'COMPLETED'::core.order_status, completed_at = now()
+      WHERE id = ${orderId}::uuid
+    `;
+    await this.prisma.$executeRaw`
+      INSERT INTO fin.settlements (
+        id, reference, beneficiary_org_id, beneficiary_role, order_id, commission_rule_id,
+        gross_amount, commission_rate_bps, commission_amount, commission_vat_amount, net_amount,
+        eligible_at, payable_on, status, version, created_at, updated_at
+      ) VALUES (
+        ${randomUUID()}::uuid, ${reference}, ${order.provider_org_id}::uuid, 'PROVIDER'::core.beneficiary_role,
+        ${orderId}::uuid, ${order.commission_rule_id}::uuid,
+        ${order.service_fee}::core.halalas, ${order.commission_rate_bps}::core.bps,
+        ${order.commission_amount}::core.halalas, ${order.commission_vat_amount}::core.halalas,
+        ${settlementNet}::core.halalas,
+        now(), CURRENT_DATE, 'SCHEDULED'::core.settlement_status, 1, now(), now()
+      )
+    `;
+    return this.serializeOrder(orderId);
+  }
+
   async feed(userId: string, organizationId: string, role: 'customer' | 'provider', status?: string) {
     await this.requireMembership(organizationId, userId);
     const where =
@@ -262,6 +305,7 @@ export class OrdersService {
 
   private allowedActions(status: string, role: 'customer' | 'provider'): string[] {
     if (role === 'provider' && status === 'CONFIRMED') return ['confirm_readiness'];
+    if (role === 'provider' && ['SCHEDULED', 'IN_PROGRESS', 'ACTIVE'].includes(status)) return ['complete_order'];
     if (role === 'customer' && status === 'PENDING_PAYMENT') return ['pay'];
     return [];
   }

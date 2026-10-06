@@ -58,6 +58,16 @@ export class OrdersController {
     return this.orders.getOrder(user.sub, id);
   }
 
+  @Post('orders/:id/complete')
+  complete(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    const { organizationId } = parseBody(confirmReadinessSchema, body);
+    return this.orders.completeOrder(user.sub, id, organizationId);
+  }
+
   @Post('orders/:id/confirm-readiness')
   confirmReadiness(
     @Param('id') id: string,
