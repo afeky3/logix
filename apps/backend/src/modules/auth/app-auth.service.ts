@@ -219,8 +219,12 @@ export class AppAuthService {
       data: { verified_at: new Date() },
     });
 
-    const user = await this.prisma.users.findUnique({ where: { phone_e164: challenge.phone_e164 } });
-    if (!user) throw new AppError('NOT_FOUND', 'No account for this phone');
+    // Same as OTP verify: a first-time phone gets its account created here.
+    const user =
+      (await this.prisma.users.findUnique({ where: { phone_e164: challenge.phone_e164 } })) ??
+      (await this.prisma.users.create({
+        data: { id: randomUUID(), phone_e164: challenge.phone_e164 },
+      }));
     if (email) {
       const taken = await this.prisma.users.findFirst({
         where: { email: email.toLowerCase(), NOT: { id: user.id } },
