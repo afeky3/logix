@@ -7,6 +7,7 @@ import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { QuotesService } from './quotes.service';
 
 const quoteInputSchema = z.object({
+  requestId: z.string().uuid().optional(), // preview only: picks the commission rate by service type
   serviceFeeHalalas: z.number().positive(),
   chargesTotalHalalas: z.number().nonnegative().optional(),
   etaDate: z.string().optional(),

@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { quotes } from '@prisma/client';
+
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { Money } from '../../common/money/money';
+
+type CommissionCategory = 'FREIGHT_TRANSPORT' | 'CUSTOMS_STORAGE';
 
 const VAT_RATE_BPS = 1500; // 15%
 const DEFAULT_VALID_HOURS = 48;
@@ -23,6 +26,7 @@ const DEFAULT_VALID_HOURS = 48;
  */
 
 export interface QuoteInput {
+  requestId?: string;
   serviceFeeHalalas: number;
   chargesTotalHalalas?: number;
   etaDate?: string;
@@ -49,7 +53,19 @@ export class QuotesService {
   }
 
   /** Shared by preview and submit — never persists, just computes. */
-  private async compute(input: QuoteInput) {
+  /** Commission bucket for a request: customs is 20%, every other service 10%
+   * (client round 1). FREIGHT_TRANSPORT is the general bucket, so non-freight
+   * services sit under it too; their rate lives in fin.commission_rules. */
+  private async categoryFor(requestId?: string): Promise<CommissionCategory> {
+    if (!requestId) return 'FREIGHT_TRANSPORT';
+    const req = await this.prisma.service_requests.findUnique({
+      where: { id: requestId },
+      select: { service_type: true },
+    });
+    return req?.service_type === 'CUSTOMS' ? 'CUSTOMS_STORAGE' : 'FREIGHT_TRANSPORT';
+  }
+
+  private async compute(input: QuoteInput, category: CommissionCategory) {
     const serviceFee = Money.fromHalalas(Math.round(input.serviceFeeHalalas));
     const chargesTotal = Money.fromHalalas(Math.round(input.chargesTotalHalalas ?? 0));
     const subtotal = serviceFee.add(chargesTotal);
@@ -57,10 +73,10 @@ export class QuotesService {
     const totalAmount = subtotal.add(vatAmount);
 
     const rule = await this.prisma.commission_rules.findFirst({
-      where: { category: 'FREIGHT_TRANSPORT', effective_to: null },
-      orderBy: { effective_from: 'desc' },
+      where: { category, effective_to: null },
+      orderBy: { effective_from: "desc" },
     });
-    const rateBps = rule?.rate_bps ?? 1000;
+    const rateBps = rule?.rate_bps ?? (category === 'CUSTOMS_STORAGE' ? 2000 : 1000);
     const vatOnCommission = rule?.vat_on_commission ?? true;
 
     const commissionAmount = serviceFee.vat(rateBps); // same half-up % math
@@ -75,6 +91,7 @@ export class QuotesService {
       vatAmount,
       totalAmount,
       rateBps,
+      category,
       commissionAmount,
       commissionVat,
       netToProvider,
@@ -82,7 +99,7 @@ export class QuotesService {
   }
 
   async preview(input: QuoteInput) {
-    const c = await this.compute(input);
+    const c = await this.compute(input, await this.categoryFor(input.requestId));
     return {
       serviceFee: c.serviceFee.toDto(),
       chargesTotal: c.chargesTotal.toDto(),
@@ -118,7 +135,7 @@ export class QuotesService {
       throw new AppError('BUSINESS_RULE_VIOLATION', 'You already have an open quote on this request — revise it instead');
     }
 
-    const c = await this.compute(input);
+    const c = await this.compute(input, await this.categoryFor(requestId));
     const validHours = Math.min(168, Math.max(24, input.validHours ?? DEFAULT_VALID_HOURS));
     const now = new Date();
 
@@ -141,7 +158,7 @@ export class QuotesService {
         ${quoteId}::uuid, ${requestId}::uuid, ${organizationId}::uuid, 'SUBMITTED'::core.quote_status, 'SAR'::core.currency_code,
         ${BigInt(c.serviceFee.halalas)}::core.halalas, ${BigInt(c.chargesTotal.halalas)}::core.halalas, ${BigInt(c.subtotal.halalas)}::core.halalas,
         ${VAT_RATE_BPS}::core.bps, ${BigInt(c.vatAmount.halalas)}::core.halalas, ${BigInt(c.totalAmount.halalas)}::core.halalas,
-        'FREIGHT_TRANSPORT'::core.commission_category, ${c.rateBps}::core.bps, ${BigInt(c.commissionAmount.halalas)}::core.halalas,
+        ${c.category}::core.commission_category, ${c.rateBps}::core.bps, ${BigInt(c.commissionAmount.halalas)}::core.halalas,
         ${BigInt(c.commissionVat.halalas)}::core.halalas, ${BigInt(c.netToProvider.halalas)}::core.halalas,
         ${etaDate}::date, ${input.durationDays ?? null}::numeric, ${validUntil}::timestamptz,
         ${input.scopeIncluded ?? null}, ${input.exclusions ?? null}, ${input.notes ?? null},
@@ -176,7 +193,7 @@ export class QuotesService {
       throw new AppError('INVALID_STATE_TRANSITION', 'Only an open quote can be revised');
     }
 
-    const c = await this.compute(input);
+    const c = await this.compute(input, await this.categoryFor(existing.request_id));
     const validHours = Math.min(168, Math.max(24, input.validHours ?? DEFAULT_VALID_HOURS));
     const validUntil = new Date(Date.now() + validHours * 60 * 60 * 1000);
     const etaDate = input.etaDate ? new Date(input.etaDate) : null;
@@ -190,6 +207,7 @@ export class QuotesService {
         subtotal = ${BigInt(c.subtotal.halalas)}::core.halalas,
         vat_amount = ${BigInt(c.vatAmount.halalas)}::core.halalas,
         total_amount = ${BigInt(c.totalAmount.halalas)}::core.halalas,
+        commission_category = ${c.category}::core.commission_category,
         commission_rate_bps_preview = ${c.rateBps}::core.bps,
         commission_amount_preview = ${BigInt(c.commissionAmount.halalas)}::core.halalas,
         commission_vat_preview = ${BigInt(c.commissionVat.halalas)}::core.halalas,
