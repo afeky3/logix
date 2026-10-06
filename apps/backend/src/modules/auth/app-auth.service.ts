@@ -191,6 +191,30 @@ export class AppAuthService {
   /** Set or reset the password. Proves control of the phone with a fresh
    * OTP challenge (the same one requestOtp issues), optionally setting the
    * email login identifier too. */
+  /** First-time password for a signed-in user who has none yet (e.g. right
+   * after registering). No OTP: the session already proves the phone. */
+  async setInitialPassword(userId: string, password: string, email?: string) {
+    const user = await this.prisma.users.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('NOT_FOUND', 'Account not found');
+    if (user.password_hash) {
+      throw new AppError('BUSINESS_RULE_VIOLATION', 'A password is already set — use the reset flow');
+    }
+    if (email) {
+      const taken = await this.prisma.users.findFirst({
+        where: { email: email.toLowerCase(), NOT: { id: user.id } },
+      });
+      if (taken) throw new AppError('BUSINESS_RULE_VIOLATION', 'This email is already used by another account');
+    }
+    await this.prisma.users.update({
+      where: { id: user.id },
+      data: {
+        password_hash: await argon2.hash(password),
+        ...(email ? { email: email.toLowerCase() } : {}),
+      },
+    });
+    return { success: true };
+  }
+
   async setPassword(
     challengeId: string,
     code: string,

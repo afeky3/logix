@@ -75,6 +75,16 @@ export class AppAuthController {
     return this.auth.loginWithPassword(identifier, password, device, req.ip);
   }
 
+  @Post('password/initial')
+  @UseGuards(JwtAuthGuard)
+  async setInitialPassword(@Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
+    const { password, email } = parseBody(
+      passwordSetSchema.omit({ challengeId: true, code: true }),
+      body,
+    );
+    return this.auth.setInitialPassword(user.sub, password, email);
+  }
+
   @Post('password/set')
   async setPassword(@Body() body: unknown) {
     const { challengeId, code, password, email } = parseBody(passwordSetSchema, body);
