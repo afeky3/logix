@@ -3048,6 +3048,9 @@ model transport_request_details {
   loading_assistance                                                loading_assistance?
   temperature_c                                                     Decimal?                  @db.Decimal(4, 1)
   special_handling                                                  String?
+  long_term_contract                                                 Boolean                   @default(false)
+  contract_term                                                     String?
+  contract_term_other                                               String?
   border_instructions                                               String?
   vehicles_count                                                    Int?                      @db.SmallInt
   extras                                                            Json                      @default("{}")

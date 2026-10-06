@@ -22,6 +22,9 @@ export interface TransportStepInput {
   loadingAssistance?: string;
   temperatureC?: number;
   specialHandling?: string;
+  longTermContract?: boolean;
+  contractTerm?: 'MONTHLY' | 'QUARTERLY' | 'SEMI_ANNUAL' | 'ANNUAL' | 'OTHER';
+  contractTermOther?: string;
   borderInstructions?: string;
   vehiclesCount?: number;
   originSummary?: string;
@@ -173,6 +176,9 @@ export class RequestsService {
         loading_assistance: input.loadingAssistance as never,
         temperature_c: input.temperatureC,
         special_handling: input.specialHandling,
+        long_term_contract: input.longTermContract,
+        contract_term: input.longTermContract ? input.contractTerm : null,
+        contract_term_other: input.contractTerm === 'OTHER' ? input.contractTermOther : null,
         border_instructions: input.borderInstructions,
         vehicles_count: input.vehiclesCount,
         route_distance_km: routeEstimate?.distanceKm,
