@@ -18,9 +18,9 @@ export class StaffAuthController {
   constructor(private readonly auth: StaffAuthService) {}
 
   @Post('login')
-  async login(@Body() body: unknown) {
+  async login(@Body() body: unknown, @Req() req: FastifyRequest) {
     const { email, password } = parseBody(loginSchema, body);
-    return this.auth.login(email, password);
+    return this.auth.login(email, password, req.ip, req.headers['user-agent']);
   }
 
   @Post('mfa/setup')

@@ -29,7 +29,12 @@ export class StaffAuthService {
     private readonly tokens: TokenService,
   ) {}
 
-  async login(email: string, password: string) {
+  /**
+   * Password login. The TOTP step is switched off for now (testing), so a
+   * correct password opens the session right away. To bring MFA back, return
+   * the mfaToken challenge here instead, as `setupMfa`/`verifyMfa` expect.
+   */
+  async login(email: string, password: string, ip?: string, userAgent?: string) {
     const staff = await this.prisma.staff_users.findUnique({ where: { email } });
     // Same response whether the email exists or not, to avoid enumeration.
     const genericError = () => new AppError('UNAUTHENTICATED', 'Invalid email or password');
@@ -63,8 +68,7 @@ export class StaffAuthService {
       data: { failed_login_count: 0 },
     });
 
-    const mfaToken = await this.tokens.issueMfaChallengeToken(staff.id);
-    return { mfaRequired: true, mfaToken, needsEnrollment: !staff.totp_secret_enc };
+    return this.openSession(staff, ip, userAgent, new Date());
   }
 
   async setupMfa(mfaToken: string) {
@@ -126,7 +130,16 @@ export class StaffAuthService {
       },
     });
 
-    const now = new Date();
+    return this.openSession(staff, ip, userAgent, new Date());
+  }
+
+  /** Creates the staff session row and returns its tokens (shared by login and MFA verify). */
+  private async openSession(
+    staff: { id: string; email: string; full_name: string },
+    ip: string | undefined,
+    userAgent: string | undefined,
+    now: Date,
+  ) {
     const session = await this.prisma.staff_sessions.create({
       data: {
         id: randomUUID(),

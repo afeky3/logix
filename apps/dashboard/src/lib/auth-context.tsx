@@ -10,12 +10,6 @@ export interface Staff {
 
 type Status = "loading" | "authenticated" | "unauthenticated";
 
-interface LoginResult {
-  mfaRequired: true;
-  mfaToken: string;
-  needsEnrollment: boolean;
-}
-
 interface MfaSetupResult {
   otpauthUrl: string;
   secret: string;
@@ -26,7 +20,7 @@ interface AuthContextValue {
   status: Status;
   staff: Staff | null;
   accessToken: string | null;
-  login: (email: string, password: string) => Promise<LoginResult>;
+  login: (email: string, password: string) => Promise<void>;
   setupMfa: (mfaToken: string) => Promise<MfaSetupResult>;
   verifyMfa: (mfaToken: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -84,10 +78,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const login = React.useCallback(
-    (email: string, password: string) => postJson<LoginResult>("/api/auth/login", { email, password }),
-    [],
-  );
+  const login = React.useCallback(async (email: string, password: string) => {
+    const result = await postJson<{ accessToken: string; staff: Staff }>("/api/auth/login", {
+      email,
+      password,
+    });
+    setAccessToken(result.accessToken);
+    setStaff(result.staff);
+    setStatus("authenticated");
+  }, []);
 
   const setupMfa = React.useCallback(
     (mfaToken: string) => postJson<MfaSetupResult>("/api/auth/mfa-setup", { mfaToken }),
