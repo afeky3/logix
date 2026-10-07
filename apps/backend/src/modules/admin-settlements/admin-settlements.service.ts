@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { ReferenceGenerator } from '../../common/references/reference-generator';
 
 /**
  * Provider payouts, staff-driven for now (client round 1, item 14): a
@@ -12,7 +13,10 @@ import { AppError } from '../../common/errors/app-error';
  */
 @Injectable()
 export class AdminSettlementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly refs: ReferenceGenerator,
+  ) {}
 
   async companyBankAccount() {
     const row = await this.prisma.app_config.findUnique({ where: { key: 'COMPANY_BANK_ACCOUNT' } });
@@ -43,7 +47,13 @@ export class AdminSettlementsService {
     }));
   }
 
-  /** Staff confirms the manual bank transfer was made. */
+  /**
+   * Staff confirms the manual bank transfer was made. settlements.payout_id
+   * is a real FK (fin.payouts, itself under a payout_batches batch) — there
+   * is no batch/export workflow yet, so this opens a single-item batch and
+   * payout just to record the one transfer against the beneficiary's own
+   * bank account on file.
+   */
   async markPaid(id: string, staffId: string) {
     const settlement = await this.prisma.settlements.findUnique({ where: { id } });
     if (!settlement) throw new AppError('NOT_FOUND', 'Settlement not found');
@@ -51,11 +61,57 @@ export class AdminSettlementsService {
     if (settlement.status !== 'SCHEDULED' && settlement.status !== 'ON_HOLD') {
       throw new AppError('INVALID_STATE_TRANSITION', 'Only a scheduled or held settlement can be marked paid');
     }
-    await this.prisma.settlements.update({
-      where: { id },
-      data: { status: 'PAID', paid_at: new Date(), payout_id: randomUUID() },
+
+    const bankAccount = await this.prisma.bank_accounts.findFirst({
+      where: { organization_id: settlement.beneficiary_org_id, deleted_at: null },
+      orderBy: { is_default: 'desc' },
     });
-    void staffId; // who confirmed it — audited via staff session logs, not stored on the row yet
+    if (!bankAccount) {
+      throw new AppError('BUSINESS_RULE_VIOLATION', 'Beneficiary has no bank account on file');
+    }
+
+    const now = new Date();
+    const batchId = randomUUID();
+    const payoutId = randomUUID();
+    // fin.payouts.reference requires TRX- followed by 7+ digits; the
+    // generator gives 6, so pad one zero (same fix as settlement references).
+    const batchReference = 'TRX-0' + (await this.refs.next('TRX')).slice(4);
+    const payoutReference = 'TRX-0' + (await this.refs.next('TRX')).slice(4);
+
+    await this.prisma.$transaction([
+      this.prisma.payout_batches.create({
+        data: {
+          id: batchId,
+          reference: batchReference,
+          status: 'PAID',
+          bank_format: 'MANUAL',
+          total_amount: settlement.net_amount,
+          payout_count: 1,
+          created_by_staff_id: staffId,
+          // ck_batch_maker_checker: approver must differ from the creator —
+          // no second staff member in this manual single-item flow, so leave unapproved.
+          completed_at: now,
+        },
+      }),
+      this.prisma.payouts.create({
+        data: {
+          id: payoutId,
+          batch_id: batchId,
+          reference: payoutReference,
+          beneficiary_org_id: settlement.beneficiary_org_id,
+          bank_account_id: bankAccount.id,
+          iban_last4: bankAccount.iban_last4,
+          account_holder_snapshot: bankAccount.account_holder_name,
+          amount: settlement.net_amount,
+          status: 'PAID',
+          paid_at: now,
+        },
+      }),
+      this.prisma.settlements.update({
+        where: { id },
+        data: { status: 'PAID', paid_at: now, payout_id: payoutId },
+      }),
+    ]);
     return this.get(id);
   }
 
