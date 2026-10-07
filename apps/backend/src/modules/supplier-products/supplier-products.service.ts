@@ -118,6 +118,22 @@ export class SupplierProductsService {
 
     const unitCode = await this.matchUnitCode(input.unitText);
     const now = new Date();
+
+    // ck_products_published: PUBLISHED needs a listing consent — the
+    // "I declare this listing is accurate" checkbox on the price/stock step.
+    const consent = await this.prisma.consents.create({
+      data: {
+        id: randomUUID(),
+        user_id: userId,
+        organization_id: orgId,
+        workspace: 'SUPPLIER',
+        consent_key: 'LISTING_ACCURACY',
+        context_type: 'product',
+        context_id: productId,
+        context_reference: product.name,
+      },
+    });
+
     const updated = await this.prisma.products.update({
       where: { id: productId },
       data: {
@@ -129,6 +145,7 @@ export class SupplierProductsService {
         lead_time_days: input.leadTimeDays,
         status: 'PUBLISHED',
         published_at: now,
+        listing_consent_id: consent.id,
       },
     });
     return { id: updated.id, status: updated.status };
