@@ -12,6 +12,8 @@ import { AdminKybModule } from './modules/admin-kyb/admin-kyb.module';
 import { AdminAccountsModule } from './modules/admin-accounts/admin-accounts.module';
 import { AdminSettlementsModule } from './modules/admin-settlements/admin-settlements.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
+import { CasesModule } from './modules/cases/cases.module';
+import { AdminCasesModule } from './modules/admin-cases/admin-cases.module';
 import { RequestsModule } from './modules/requests/requests.module';
 import { OrdersModule } from './modules/orders/orders.module';
 
@@ -37,6 +39,8 @@ import { OrdersModule } from './modules/orders/orders.module';
     AdminAccountsModule,
     AdminSettlementsModule,
     ShippingModule,
+    CasesModule,
+    AdminCasesModule,
     RequestsModule,
     OrdersModule,
   ],
