@@ -270,5 +270,49 @@
     },
     "markPaid": "Mark paid",
     "markPaidConfirm": "Confirm the bank transfer was made to this beneficiary? This cannot be undone from here."
+  },
+  "cases": {
+    "title": "Cases",
+    "subtitle": "Buyer-reported issues: damage, shortage, mismatch or general support",
+    "allStatuses": "All",
+    "status": {
+      "OPEN": "Open",
+      "IN_PROGRESS": "In progress",
+      "WAITING_ON_CUSTOMER": "Waiting on customer",
+      "WAITING_ON_PROVIDER": "Waiting on provider",
+      "WAITING_ON_SUPPLIER": "Waiting on supplier",
+      "RESOLVED": "Resolved",
+      "REOPENED": "Reopened",
+      "CLOSED": "Closed"
+    },
+    "loading": "Loading…",
+    "empty": "No cases in this view.",
+    "columns": {
+      "reference": "Reference",
+      "openedBy": "Opened by",
+      "order": "Order",
+      "status": "Status",
+      "created": "Created"
+    },
+    "detailTitle": "Case",
+    "backToList": "Back to cases",
+    "noDescription": "No description.",
+    "evidenceCount": "{count} evidence file(s) attached",
+    "markInProgress": "Mark in progress",
+    "markWaitingOnCustomer": "Wait on customer",
+    "resolutionCode": "Resolution",
+    "resolutionNotePlaceholder": "Resolution note (optional)",
+    "resolve": "Resolve case",
+    "resolutionTitle": "Resolution",
+    "resolutionCodes": {
+      "RESOLVED_REFUND": "Refunded",
+      "RESOLVED_ADJUSTMENT": "Price adjusted",
+      "RESOLVED_REPLACEMENT": "Replaced",
+      "RESOLVED_NO_FAULT": "No fault found",
+      "RESOLVED_INSURANCE": "Insurance claim",
+      "DUPLICATE": "Duplicate",
+      "INVALID": "Invalid",
+      "WITHDRAWN": "Withdrawn"
+    }
   }
 }

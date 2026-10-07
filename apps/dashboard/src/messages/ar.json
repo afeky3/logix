@@ -270,5 +270,49 @@
     },
     "markPaid": "تعليم كمدفوعة",
     "markPaidConfirm": "تأكيد إن التحويل البنكي تم لهذا المستفيد؟ ده إجراء نهائي من هنا."
+  },
+  "cases": {
+    "title": "القضايا",
+    "subtitle": "بلاغات العملاء: تلف أو نقص أو عدم تطابق أو دعم عام",
+    "allStatuses": "الكل",
+    "status": {
+      "OPEN": "مفتوحة",
+      "IN_PROGRESS": "تحت المراجعة",
+      "WAITING_ON_CUSTOMER": "في انتظار العميل",
+      "WAITING_ON_PROVIDER": "في انتظار المزود",
+      "WAITING_ON_SUPPLIER": "في انتظار المورد",
+      "RESOLVED": "محلولة",
+      "REOPENED": "أعيد فتحها",
+      "CLOSED": "مغلقة"
+    },
+    "loading": "جاري التحميل…",
+    "empty": "مفيش قضايا في هذا العرض.",
+    "columns": {
+      "reference": "المرجع",
+      "openedBy": "فتحها",
+      "order": "الطلب",
+      "status": "الحالة",
+      "created": "تاريخ الفتح"
+    },
+    "detailTitle": "القضية",
+    "backToList": "رجوع للقضايا",
+    "noDescription": "بدون وصف.",
+    "evidenceCount": "{count} ملف إثبات مرفق",
+    "markInProgress": "تعليم كتحت المراجعة",
+    "markWaitingOnCustomer": "انتظار رد العميل",
+    "resolutionCode": "القرار",
+    "resolutionNotePlaceholder": "ملاحظة القرار (اختياري)",
+    "resolve": "حل القضية",
+    "resolutionTitle": "القرار",
+    "resolutionCodes": {
+      "RESOLVED_REFUND": "تم الاسترجاع",
+      "RESOLVED_ADJUSTMENT": "تعديل السعر",
+      "RESOLVED_REPLACEMENT": "تم الاستبدال",
+      "RESOLVED_NO_FAULT": "لا يوجد خطأ",
+      "RESOLVED_INSURANCE": "مطالبة تأمين",
+      "DUPLICATE": "مكررة",
+      "INVALID": "غير صحيحة",
+      "WITHDRAWN": "تم التراجع"
+    }
   }
 }

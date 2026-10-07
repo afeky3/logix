@@ -1,6 +1,15 @@
 import { getTranslations } from "next-intl/server";
-import { Gavel } from "lucide-react";
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { CasesClient } from "./cases-client";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "cases" });
+  return { title: t("title") };
+}
 
 export default async function CasesPage({
   params,
@@ -8,6 +17,15 @@ export default async function CasesPage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "nav" });
-  return <ComingSoon title={t("cases")} icon={Gavel} locale={locale} />;
+  const t = await getTranslations({ locale, namespace: "cases" });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-semibold">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+      </div>
+      <CasesClient />
+    </div>
+  );
 }
