@@ -87,7 +87,7 @@ export class SupplierProductsService {
         origin_country_code: originCountryCode,
         unit_code: 'OTHER',
         lead_time_days: 1,
-        unit_price: 0n,
+        unit_price: 1n, // placeholder — products_unit_price_check requires > 0; set for real on publish
         status: 'DRAFT',
         supply_notes: input.originText && originCountryCode === 'SA' && !input.originText.includes('سعود')
           ? `Origin as entered: ${input.originText}`

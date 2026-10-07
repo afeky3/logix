@@ -18,7 +18,7 @@ const createSchema = z.object({
 });
 
 const publishSchema = z.object({
-  unitPriceHalalas: z.number().int().nonnegative(),
+  unitPriceHalalas: z.number().int().positive(),
   vatTreatment: z.enum(['INCLUSIVE', 'EXCLUSIVE']),
   unitText: z.string().max(60).optional(),
   stockQty: z.number().int().nonnegative(),
