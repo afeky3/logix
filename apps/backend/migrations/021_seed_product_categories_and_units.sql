@@ -3,11 +3,12 @@
 -- seeded, so the supplier's "add product" screens had nothing real to save against.
 BEGIN;
 
+-- ck_category_root: (parent_id IS NULL) = (depth = 1) — root categories are depth 1.
 INSERT INTO mkt.product_categories (id, slug, name_ar, name_en, depth, sort_order) VALUES
-  (gen_random_uuid(), 'packaging', 'تعبئة وتغليف', 'Packaging', 0, 1),
-  (gen_random_uuid(), 'equipment', 'معدات', 'Equipment', 0, 2),
-  (gen_random_uuid(), 'building-materials', 'مواد بناء', 'Building materials', 0, 3),
-  (gen_random_uuid(), 'other', 'أخرى', 'Other', 0, 4)
+  (gen_random_uuid(), 'packaging', 'تعبئة وتغليف', 'Packaging', 1, 1),
+  (gen_random_uuid(), 'equipment', 'معدات', 'Equipment', 1, 2),
+  (gen_random_uuid(), 'building-materials', 'مواد بناء', 'Building materials', 1, 3),
+  (gen_random_uuid(), 'other', 'أخرى', 'Other', 1, 4)
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO ref.units_of_measure (code, kind, name_ar, name_en, sort_order) VALUES
