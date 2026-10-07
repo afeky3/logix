@@ -3006,6 +3006,13 @@ model shipping_request_details {
   wants_customs_clearance                                                Boolean               @default(false)
   wants_insurance                                                        Boolean               @default(false)
   extras                                                                 Json                  @default("{}")
+  origin_label                                                           String?
+  destination_label                                                      String?
+  origin_country_other                                                   String?
+  destination_country_other                                              String?
+  container_type_other                                                   String?
+  border_crossing                                                        String?
+  border_crossing_other                                                  String?
   commodity_categories                                                   commodity_categories? @relation(fields: [commodity_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
   container_types                                                        container_types?      @relation(fields: [container_type_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
   addresses_shipping_request_details_delivery_address_idToaddresses      addresses?            @relation("shipping_request_details_delivery_address_idToaddresses", fields: [delivery_address_id], references: [id], onDelete: NoAction, onUpdate: NoAction)

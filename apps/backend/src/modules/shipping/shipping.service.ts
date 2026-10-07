@@ -1,17 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 
 export interface ShippingDetailsInput {
   freightMode?: 'SEA' | 'AIR' | 'LAND';
   tradeDirection?: 'IMPORT' | 'EXPORT';
-  originCountry?: string;
+  originCountry?: 'CN' | 'AE' | 'TR' | 'SA' | 'OTHER';
   originCountryOther?: string;
-  destinationCountry?: string;
+  originLabel?: string;
+  destinationCountry?: 'CN' | 'AE' | 'TR' | 'SA' | 'OTHER';
   destinationCountryOther?: string;
-  polLabel?: string;
-  podLabel?: string;
-  goodsType?: 'INDUSTRIAL' | 'CONSUMER' | 'RAW' | 'OTHER';
+  destinationLabel?: string;
   goodsTypeOther?: string;
   containerKind?: 'STANDARD' | 'HIGH_CUBE' | 'REEFER' | 'OTHER';
   containerKindOther?: string;
@@ -32,23 +32,13 @@ export interface ShippingDetailsInput {
   specialRequirements?: string;
 }
 
-interface ShippingRow {
-  freight_mode: string | null;
-  trade_direction: string | null;
-  origin_country: string | null;
-  origin_country_other: string | null;
-  destination_country: string | null;
-  destination_country_other: string | null;
-  pol_label: string | null;
-  pod_label: string | null;
-  weight_kg: string | null;
-  readiness_date: Date | null;
-}
-
 /**
  * International shipping request (client round 1, item 2): route, cargo and
- * extras are four separate screens, each saving only what it has — every
- * call COALESCEs its fields onto the existing row instead of overwriting it.
+ * extras are four separate screens, each saving only what it collected onto
+ * the one real svc.shipping_request_details row (from 001_init.sql) — a
+ * plain Prisma update only touches the keys given, so this needs no
+ * COALESCE trick. `extras` is the one JSON field, merged by hand so an
+ * earlier call's flags survive a later one that doesn't repeat them.
  */
 @Injectable()
 export class ShippingService {
@@ -77,77 +67,73 @@ export class ShippingService {
     if (request.status !== 'DRAFT') {
       throw new AppError('INVALID_STATE_TRANSITION', 'Only a draft request can be edited');
     }
-    await this.prisma.$executeRaw`
-      INSERT INTO svc.shipping_request_details (request_id) VALUES (${requestId}::uuid)
-      ON CONFLICT (request_id) DO NOTHING
-    `;
-    await this.prisma.$executeRaw`
-      UPDATE svc.shipping_request_details SET
-        freight_mode = COALESCE(${input.freightMode ?? null}, freight_mode),
-        trade_direction = COALESCE(${input.tradeDirection ?? null}, trade_direction),
-        origin_country = COALESCE(${input.originCountry ?? null}, origin_country),
-        origin_country_other = COALESCE(${input.originCountryOther ?? null}, origin_country_other),
-        destination_country = COALESCE(${input.destinationCountry ?? null}, destination_country),
-        destination_country_other = COALESCE(${input.destinationCountryOther ?? null}, destination_country_other),
-        pol_label = COALESCE(${input.polLabel ?? null}, pol_label),
-        pod_label = COALESCE(${input.podLabel ?? null}, pod_label),
-        goods_type = COALESCE(${input.goodsType ?? null}, goods_type),
-        goods_type_other = COALESCE(${input.goodsTypeOther ?? null}, goods_type_other),
-        container_kind = COALESCE(${input.containerKind ?? null}, container_kind),
-        container_kind_other = COALESCE(${input.containerKindOther ?? null}, container_kind_other),
-        border_crossing = COALESCE(${input.borderCrossing ?? null}, border_crossing),
-        border_crossing_other = COALESCE(${input.borderCrossingOther ?? null}, border_crossing_other),
-        pieces_count = COALESCE(${input.piecesCount ?? null}, pieces_count),
-        weight_kg = COALESCE(${input.weightKg ?? null}, weight_kg),
-        hs_code = COALESCE(${input.hsCode ?? null}, hs_code),
-        goods_description = COALESCE(${input.goodsDescription ?? null}, goods_description),
-        dimensions_cm = COALESCE(${input.dimensionsCm ?? null}, dimensions_cm),
-        volume_cbm = COALESCE(${input.volumeCbm ?? null}, volume_cbm),
-        dangerous_goods = COALESCE(${input.dangerousGoods ?? null}, dangerous_goods),
-        door_to_door = COALESCE(${input.doorToDoor ?? null}, door_to_door),
-        urgent_priority = COALESCE(${input.urgentPriority ?? null}, urgent_priority),
-        customs_on_arrival = COALESCE(${input.customsOnArrival ?? null}, customs_on_arrival),
-        temporary_storage = COALESCE(${input.temporaryStorage ?? null}, temporary_storage),
-        readiness_date = COALESCE(${input.readinessDate ?? null}::date, readiness_date),
-        special_requirements = COALESCE(${input.specialRequirements ?? null}, special_requirements),
-        updated_at = now()
-      WHERE request_id = ${requestId}::uuid
-    `;
+
+    const existing = await this.prisma.shipping_request_details.findUnique({ where: { request_id: requestId } });
+    const extras = { ...(existing?.extras as Record<string, boolean> | undefined) };
+    if (input.dangerousGoods !== undefined) extras.dangerousGoods = input.dangerousGoods;
+    if (input.temporaryStorage !== undefined) extras.temporaryStorage = input.temporaryStorage;
+
+    const packages = { ...(existing?.packages as Record<string, unknown> | null | undefined) };
+    if (input.dimensionsCm !== undefined) packages.dimensionsCm = input.dimensionsCm;
+
+    const data = {
+      mode: input.freightMode,
+      trade_direction: input.tradeDirection,
+      origin_country_code: input.originCountry === 'OTHER' ? null : input.originCountry,
+      origin_country_other: input.originCountry === 'OTHER' ? input.originCountryOther : undefined,
+      origin_label: input.originLabel,
+      destination_country_code: input.destinationCountry === 'OTHER' ? null : input.destinationCountry,
+      destination_country_other: input.destinationCountry === 'OTHER' ? input.destinationCountryOther : undefined,
+      destination_label: input.destinationLabel,
+      commodity_other: input.goodsTypeOther,
+      container_type_code: input.containerKind,
+      container_type_other: input.containerKind === 'OTHER' ? input.containerKindOther : undefined,
+      border_crossing: input.borderCrossing,
+      border_crossing_other: input.borderCrossing === 'OTHER' ? input.borderCrossingOther : undefined,
+      package_count: input.piecesCount,
+      weight_kg: input.weightKg,
+      hs_code: input.hsCode,
+      goods_description: input.goodsDescription,
+      volume_cbm: input.volumeCbm,
+      is_door_to_door: input.doorToDoor,
+      is_express: input.urgentPriority,
+      wants_customs_clearance: input.customsOnArrival,
+      cargo_ready_date: input.readinessDate ? new Date(input.readinessDate) : undefined,
+      handling_requirements: input.specialRequirements,
+      extras: extras as Prisma.InputJsonValue,
+      packages: (Object.keys(packages).length ? packages : undefined) as Prisma.InputJsonValue | undefined,
+    };
+    // Prisma's update only sets keys with a defined value — undefined keys
+    // keep the row's existing value, which is what makes the partial saves work.
+    for (const key of Object.keys(data) as (keyof typeof data)[]) {
+      if (data[key] === undefined) delete data[key];
+    }
+
+    // createDraft seeds this row for every SHIPPING request, so it always exists.
+    await this.prisma.shipping_request_details.update({
+      where: { request_id: requestId },
+      data,
+    });
     return this.get(requestId, userId);
   }
 
   async get(requestId: string, userId: string) {
     await this.getShippingRequest(requestId, userId);
-    const rows = await this.prisma.$queryRaw<Record<string, unknown>[]>`
-      SELECT * FROM svc.shipping_request_details WHERE request_id = ${requestId}::uuid
-    `;
-    return rows[0] ?? null;
+    return this.prisma.shipping_request_details.findUnique({ where: { request_id: requestId } });
   }
 
   /** Submit needs the route and a readiness date — everything else is detail. */
   async assertReadyToSubmit(requestId: string) {
-    const rows = await this.prisma.$queryRaw<ShippingRow[]>`
-      SELECT freight_mode, trade_direction, origin_country, origin_country_other,
-             destination_country, destination_country_other, pol_label, pod_label,
-             weight_kg, readiness_date
-      FROM svc.shipping_request_details WHERE request_id = ${requestId}::uuid
-    `;
-    const d = rows[0];
+    const d = await this.prisma.shipping_request_details.findUnique({ where: { request_id: requestId } });
     const missing: string[] = [];
-    if (!d) {
-      missing.push('freightMode', 'tradeDirection');
-    } else {
-      if (!d.freight_mode) missing.push('freightMode');
-      if (!d.trade_direction) missing.push('tradeDirection');
-      if (!d.origin_country) missing.push('originCountry');
-      if (d.origin_country === 'OTHER' && !d.origin_country_other) missing.push('originCountryOther');
-      if (!d.destination_country) missing.push('destinationCountry');
-      if (d.destination_country === 'OTHER' && !d.destination_country_other) missing.push('destinationCountryOther');
-      if (!d.pol_label) missing.push('polLabel');
-      if (!d.pod_label) missing.push('podLabel');
-      if (!d.weight_kg) missing.push('weightKg');
-      if (!d.readiness_date) missing.push('readinessDate');
-    }
+    if (!d?.mode) missing.push('freightMode');
+    if (!d?.trade_direction) missing.push('tradeDirection');
+    if (!d?.origin_country_code && !d?.origin_country_other) missing.push('originCountry');
+    if (!d?.destination_country_code && !d?.destination_country_other) missing.push('destinationCountry');
+    if (!d?.origin_label) missing.push('originLabel');
+    if (!d?.destination_label) missing.push('destinationLabel');
+    if (!d?.weight_kg) missing.push('weightKg');
+    if (!d?.cargo_ready_date) missing.push('readinessDate');
     if (missing.length) {
       throw new AppError('VALIDATION_FAILED', `Missing required fields: ${missing.join(', ')}`, {
         details: missing.map((m) => ({ field: m, code: 'required' })),

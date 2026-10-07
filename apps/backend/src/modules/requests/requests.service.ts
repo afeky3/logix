@@ -96,6 +96,7 @@ export class RequestsService {
         created_by_user_id: userId,
         status: 'DRAFT',
         transport_request_details: { create: {} },
+        ...(serviceType === 'SHIPPING' ? { shipping_request_details: { create: {} } } : {}),
       },
     });
     return this.serialize(await this.getOrThrow(request.id, userId));
