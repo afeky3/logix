@@ -16,6 +16,7 @@ export interface TransportStepInput {
   pickupLabel?: string;
   dropoffLabel?: string;
   destinationCountryCode?: string;
+  destinationCountryOther?: string;
   transportDate?: string;
   commodityOther?: string;
   weightValue?: number;
@@ -177,6 +178,7 @@ export class RequestsService {
         pickup_label: input.pickupLabel,
         dropoff_label: input.dropoffLabel,
         destination_country_code: input.destinationCountryCode,
+        destination_country_other: input.destinationCountryOther,
         transport_date: input.transportDate ? new Date(input.transportDate) : undefined,
         commodity_other: input.commodityOther,
         weight_value: input.weightValue,

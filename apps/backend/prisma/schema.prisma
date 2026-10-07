@@ -3058,6 +3058,7 @@ model transport_request_details {
   long_term_contract                                                 Boolean                   @default(false)
   contract_term                                                     String?
   contract_term_other                                               String?
+  destination_country_other                                         String?
   border_instructions                                               String?
   vehicles_count                                                    Int?                      @db.SmallInt
   extras                                                            Json                      @default("{}")

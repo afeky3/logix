@@ -18,6 +18,7 @@ const stepSchema = z.object({
   pickupLabel: z.string().optional(),
   dropoffLabel: z.string().optional(),
   destinationCountryCode: z.string().length(2).optional(),
+  destinationCountryOther: z.string().max(120).optional(),
   transportDate: z.string().optional(),
   commodityOther: z.string().optional(),
   weightValue: z.number().optional(),
