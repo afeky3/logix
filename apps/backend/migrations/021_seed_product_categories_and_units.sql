@@ -11,14 +11,15 @@ INSERT INTO mkt.product_categories (id, slug, name_ar, name_en, depth, sort_orde
   (gen_random_uuid(), 'other', 'أخرى', 'Other', 1, 4)
 ON CONFLICT (slug) DO NOTHING;
 
+-- kind check: COUNT, WEIGHT, VOLUME, AREA or CONTAINER.
 INSERT INTO ref.units_of_measure (code, kind, name_ar, name_en, sort_order) VALUES
-  ('PCS', 'count', 'قطعة', 'Piece', 1),
-  ('CARTON', 'count', 'كرتونة', 'Carton', 2),
-  ('PALLET', 'count', 'طبلية', 'Pallet', 3),
-  ('KG', 'weight', 'كيلوجرام', 'Kilogram', 4),
-  ('TON', 'weight', 'طن', 'Ton', 5),
-  ('M3', 'volume', 'متر مكعب', 'Cubic meter', 6),
-  ('OTHER', 'other', 'أخرى', 'Other', 7)
+  ('PCS', 'COUNT', 'قطعة', 'Piece', 1),
+  ('CARTON', 'CONTAINER', 'كرتونة', 'Carton', 2),
+  ('PALLET', 'CONTAINER', 'طبلية', 'Pallet', 3),
+  ('KG', 'WEIGHT', 'كيلوجرام', 'Kilogram', 4),
+  ('TON', 'WEIGHT', 'طن', 'Ton', 5),
+  ('M3', 'VOLUME', 'متر مكعب', 'Cubic meter', 6),
+  ('OTHER', 'COUNT', 'أخرى', 'Other', 7)
 ON CONFLICT (code) DO NOTHING;
 
 COMMIT;
