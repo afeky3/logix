@@ -1,6 +1,15 @@
 import { getTranslations } from "next-intl/server";
-import { Wallet } from "lucide-react";
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { FinanceClient } from "./finance-client";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "finance" });
+  return { title: t("title") };
+}
 
 export default async function FinancePage({
   params,
@@ -8,6 +17,15 @@ export default async function FinancePage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "nav" });
-  return <ComingSoon title={t("finance")} icon={Wallet} locale={locale} />;
+  const t = await getTranslations({ locale, namespace: "finance" });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-semibold">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+      </div>
+      <FinanceClient />
+    </div>
+  );
 }

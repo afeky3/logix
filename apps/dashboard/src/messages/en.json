@@ -243,5 +243,32 @@
     "workspacesTitle": "Workspaces",
     "casesTitle": "Verification",
     "none": "None"
+  },
+  "finance": {
+    "title": "Finance",
+    "subtitle": "Provider payouts: settlements scheduled, held, or paid",
+    "companyAccountTitle": "Company account (collects customer payments)",
+    "placeholderNotice": "Placeholder — replace with the real company account before go-live.",
+    "manualPayoutNote": "Payouts are manual for now: confirm the bank transfer was made, then mark the settlement paid.",
+    "allStatuses": "All",
+    "status": {
+      "SCHEDULED": "Scheduled",
+      "ON_HOLD": "On hold",
+      "IN_BATCH": "In batch",
+      "PAID": "Paid",
+      "FAILED": "Failed",
+      "CANCELLED": "Cancelled"
+    },
+    "loading": "Loading…",
+    "empty": "No settlements in this view.",
+    "columns": {
+      "reference": "Reference",
+      "beneficiary": "Beneficiary",
+      "net": "Net amount",
+      "payableOn": "Payable on",
+      "status": "Status"
+    },
+    "markPaid": "Mark paid",
+    "markPaidConfirm": "Confirm the bank transfer was made to this beneficiary? This cannot be undone from here."
   }
 }
