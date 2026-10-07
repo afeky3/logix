@@ -18,6 +18,7 @@ import { SupplierProductsModule } from './modules/supplier-products/supplier-pro
 import { ProductsModule } from './modules/products/products.module';
 import { RequestsModule } from './modules/requests/requests.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { ProviderOpsModule } from './modules/provider-ops/provider-ops.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     ProductsModule,
     RequestsModule,
     OrdersModule,
+    ProviderOpsModule,
   ],
 })
 export class AppModule {}
