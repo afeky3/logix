@@ -5,6 +5,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { CustomsService } from '../customs/customs.service';
 import { StorageService } from '../storage/storage.service';
+import { ShippingService } from '../shipping/shipping.service';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
 import { OsmMapsAdapter } from '../../infrastructure/maps/osm-maps.adapter';
 
@@ -67,6 +68,7 @@ export class RequestsService {
     private readonly maps: OsmMapsAdapter,
     private readonly customs: CustomsService,
     private readonly storage: StorageService,
+    private readonly shipping: ShippingService,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -81,7 +83,7 @@ export class RequestsService {
   async createDraft(
     userId: string,
     organizationId: string,
-    serviceType: 'TRANSPORT' | 'CUSTOMS' | 'WAREHOUSING' = 'TRANSPORT',
+    serviceType: 'TRANSPORT' | 'CUSTOMS' | 'WAREHOUSING' | 'SHIPPING' = 'TRANSPORT',
   ) {
     await this.requireMembership(organizationId, userId);
     const reference = await this.refs.next('LX');
@@ -208,6 +210,8 @@ export class RequestsService {
       await this.customs.assertReadyToSubmit(id);
     } else if (request.service_type === 'WAREHOUSING') {
       await this.storage.assertReadyToSubmit(id);
+    } else if (request.service_type === 'SHIPPING') {
+      await this.shipping.assertReadyToSubmit(id);
     } else {
       if (!d?.vehicle_type_code) missing.push('vehicleTypeCode');
       if (!d?.pickup_label) missing.push('pickupLabel');

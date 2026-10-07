@@ -12,9 +12,10 @@ import { ReferenceGenerator } from '../../common/references/reference-generator'
 import { OsmMapsAdapter } from '../../infrastructure/maps/osm-maps.adapter';
 import { CustomsModule } from '../customs/customs.module';
 import { StorageModule } from '../storage/storage.module';
+import { ShippingModule } from '../shipping/shipping.module';
 
 @Module({
-  imports: [JwtModule.register({}), CustomsModule, StorageModule], // JwtAuthGuard/StaffAuthGuard need JwtService
+  imports: [JwtModule.register({}), CustomsModule, StorageModule, ShippingModule], // JwtAuthGuard/StaffAuthGuard need JwtService
   controllers: [
     RequestsController,
     OpportunitiesController,
