@@ -116,6 +116,17 @@ export class SupplierProductsService {
       throw new AppError('NOT_FOUND', 'Product not found');
     }
 
+    // Governance gap found auditing against the platform spec: a supplier
+    // whose KYB isn't approved yet (workspace not ACTIVE) could publish to
+    // the public catalog. Block that here — the same gate matching already
+    // applies to providers.
+    const workspace = await this.prisma.org_workspaces.findFirst({
+      where: { organization_id: orgId, workspace: 'SUPPLIER' },
+    });
+    if (workspace?.status !== 'ACTIVE') {
+      throw new AppError('BUSINESS_RULE_VIOLATION', 'Organization is not verified yet — publishing is blocked until KYB is approved');
+    }
+
     const unitCode = await this.matchUnitCode(input.unitText);
     const now = new Date();
 

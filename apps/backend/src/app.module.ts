@@ -15,6 +15,7 @@ import { ShippingModule } from './modules/shipping/shipping.module';
 import { CasesModule } from './modules/cases/cases.module';
 import { AdminCasesModule } from './modules/admin-cases/admin-cases.module';
 import { SupplierProductsModule } from './modules/supplier-products/supplier-products.module';
+import { ProductsModule } from './modules/products/products.module';
 import { RequestsModule } from './modules/requests/requests.module';
 import { OrdersModule } from './modules/orders/orders.module';
 
@@ -43,6 +44,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     CasesModule,
     AdminCasesModule,
     SupplierProductsModule,
+    ProductsModule,
     RequestsModule,
     OrdersModule,
   ],
