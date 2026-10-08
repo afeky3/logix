@@ -7,7 +7,7 @@ CREATE TABLE org.org_invitations (
   id                  uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id     uuid         NOT NULL REFERENCES org.organizations(id),
   phone_e164          text         NOT NULL,
-  role                org.membership_role NOT NULL DEFAULT 'MEMBER',
+  role                core.membership_role NOT NULL DEFAULT 'MEMBER',
   invited_by_user_id  uuid         NOT NULL REFERENCES identity.users(id),
   token               text         NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(20), 'hex'),
   expires_at          timestamptz  NOT NULL DEFAULT now() + interval '7 days',
