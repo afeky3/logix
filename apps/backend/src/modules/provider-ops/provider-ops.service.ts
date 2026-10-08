@@ -144,7 +144,9 @@ export class ProviderOpsService {
   async assignTrip(
     userId: string,
     orderId: string,
-    input: { organizationId: string; vehicleId: string; driverName: string; driverPhone?: string },
+    input:
+      | { organizationId: string; vehicleId: string; driverId: string }              // internal (org member)
+      | { organizationId: string; vehicleId: string; driverName: string; driverPhone?: string }, // external
   ) {
     const order = await this.requireProviderOrder(userId, orderId, input.organizationId);
     if (!ACTIVE_ORDER_STATUSES.includes(order.status)) {
@@ -155,25 +157,117 @@ export class ProviderOpsService {
     });
     if (!vehicle) throw new AppError('NOT_FOUND', 'Vehicle not found');
 
-    // One ACTIVE assignment per order (ux_assignments_active): replace it.
+    // One ACTIVE assignment per order: replace the previous one.
     await this.prisma.trip_assignments.updateMany({
       where: { order_id: orderId, status: 'ACTIVE' },
       data: { status: 'REPLACED', ended_at: new Date(), end_reason: 'REASSIGNED' },
     });
-    const a = await this.prisma.trip_assignments.create({
-      data: {
-        id: randomUUID(),
-        order_id: orderId,
-        is_external: true, // driver is a typed name, not a drivers row (ck_assignment_shape)
-        vehicle_id: vehicle.id,
-        external_driver_name: input.driverName,
-        external_driver_phone: input.driverPhone,
-        external_plate_number: vehicle.plate_number,
-        external_vehicle_type_code: vehicle.vehicle_type_code,
-        assigned_by_user_id: userId,
-      },
+
+    let assignment: { id: string; driver_user_id: string | null };
+
+    if ('driverId' in input) {
+      // Internal driver — must be an active driver in this org (ck_assignment_shape: is_external=false needs driver_id + vehicle_id)
+      const driver = await this.prisma.drivers.findFirst({
+        where: { id: input.driverId, organization_id: input.organizationId, status: 'ACTIVE' },
+      });
+      if (!driver) throw new AppError('NOT_FOUND', 'Driver not found or not active in this organization');
+
+      assignment = await this.prisma.trip_assignments.create({
+        data: {
+          id: randomUUID(),
+          order_id: orderId,
+          is_external: false,
+          vehicle_id: vehicle.id,
+          driver_id: driver.id,
+          driver_user_id: driver.user_id,
+          assigned_by_user_id: userId,
+        },
+      });
+
+      // Open a TRIP conversation so the driver can talk directly with the customer.
+      await this.upsertTripConversation(orderId, order.customer_org_id, driver.user_id);
+
+      return {
+        id: assignment.id,
+        vehicleId: vehicle.id,
+        plateNumber: vehicle.plate_number,
+        driverUserId: driver.user_id,
+        internal: true,
+      };
+    } else {
+      // External driver — just a name/phone, no Logix account (ck_assignment_shape: is_external=true needs name + plate)
+      assignment = await this.prisma.trip_assignments.create({
+        data: {
+          id: randomUUID(),
+          order_id: orderId,
+          is_external: true,
+          vehicle_id: vehicle.id,
+          external_driver_name: input.driverName,
+          external_driver_phone: input.driverPhone,
+          external_plate_number: vehicle.plate_number,
+          external_vehicle_type_code: vehicle.vehicle_type_code,
+          assigned_by_user_id: userId,
+        },
+      });
+      return {
+        id: assignment.id,
+        vehicleId: vehicle.id,
+        plateNumber: vehicle.plate_number,
+        driverName: input.driverName,
+        internal: false,
+      };
+    }
+  }
+
+  /** Find or create a TRIP conversation for an order and add driver + customer org as participants. */
+  private async upsertTripConversation(orderId: string, customerOrgId: string, driverUserId: string) {
+    const dedupeKey = `trip:${orderId}`;
+    let conv = await this.prisma.conversations.findUnique({ where: { dedupe_key: dedupeKey } });
+
+    if (!conv) {
+      conv = await this.prisma.conversations.create({
+        data: {
+          id: randomUUID(),
+          conversation_type: 'TRIP',
+          dedupe_key: dedupeKey,
+          context_type: 'order',
+          context_id: orderId,
+          pre_award_masking: false,
+        },
+      });
+    }
+
+    // Upsert customer org participant (user_id/staff_id absent → undefined, not null)
+    const existing_customer = await this.prisma.conversation_participants.findFirst({
+      where: { conversation_id: conv.id, organization_id: customerOrgId, user_id: null, staff_id: null },
     });
-    return { id: a.id, vehicleId: vehicle.id, plateNumber: vehicle.plate_number, driverName: input.driverName };
+    if (!existing_customer) {
+      await this.prisma.conversation_participants.create({
+        data: { id: randomUUID(), conversation_id: conv.id, organization_id: customerOrgId, role: 'CUSTOMER' },
+      });
+    } else if (existing_customer.left_at) {
+      await this.prisma.conversation_participants.update({
+        where: { id: existing_customer.id },
+        data: { left_at: null },
+      });
+    }
+
+    // Upsert driver user participant
+    const existing_driver = await this.prisma.conversation_participants.findFirst({
+      where: { conversation_id: conv.id, user_id: driverUserId, organization_id: null, staff_id: null },
+    });
+    if (!existing_driver) {
+      await this.prisma.conversation_participants.create({
+        data: { id: randomUUID(), conversation_id: conv.id, user_id: driverUserId, role: 'DRIVER' },
+      });
+    } else if (existing_driver.left_at) {
+      await this.prisma.conversation_participants.update({
+        where: { id: existing_driver.id },
+        data: { left_at: null },
+      });
+    }
+
+    return conv.id;
   }
 
   async recordEvent(

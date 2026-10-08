@@ -1013,6 +1013,7 @@ model users {
   consents                                                                consents[]
   memberships_memberships_invited_by_user_idTousers                       memberships[]               @relation("memberships_invited_by_user_idTousers")
   memberships_memberships_user_idTousers                                  memberships[]               @relation("memberships_user_idTousers")
+  org_invitations                                                         org_invitations[]
   organizations                                                           organizations[]
   additional_charges_additional_charges_decided_by_user_idTousers         additional_charges[]        @relation("additional_charges_decided_by_user_idTousers")
   additional_charges_additional_charges_proposed_by_user_idTousers        additional_charges[]        @relation("additional_charges_proposed_by_user_idTousers")
@@ -1973,12 +1974,32 @@ model memberships {
   organizations                               organizations     @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users_memberships_user_idTousers            users             @relation("memberships_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   drivers                                     drivers?
+  org_invitations                             org_invitations[]
 
   @@unique([user_id, organization_id])
   @@schema("org")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model org_invitations {
+  id                  String          @id @db.Uuid
+  organization_id     String          @db.Uuid
+  phone_e164          String
+  role                membership_role
+  invited_by_user_id  String          @db.Uuid
+  token               String          @unique
+  expires_at          DateTime        @db.Timestamptz(6)
+  used_at             DateTime?       @db.Timestamptz(6)
+  membership_id       String?         @db.Uuid
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  organizations       organizations   @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users               users           @relation(fields: [invited_by_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  memberships         memberships?    @relation(fields: [membership_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([phone_e164], map: "ix_org_invitations_phone")
+  @@schema("org")
+}
+
 model org_workspaces {
   id                String           @id @db.Uuid
   organization_id   String           @db.Uuid
@@ -2047,6 +2068,7 @@ model organizations {
   consents                                                                   consents[]
   licenses                                                                   licenses[]
   memberships                                                                memberships[]
+  org_invitations                                                            org_invitations[]
   org_workspaces                                                             org_workspaces[]
   users                                                                      users?                      @relation(fields: [created_by_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   provider_activities                                                        provider_activities[]

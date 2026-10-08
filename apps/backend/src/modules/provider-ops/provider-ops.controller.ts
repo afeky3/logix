@@ -13,12 +13,21 @@ const addVehicleSchema = z.object({
   isReefer: z.boolean().optional(),
 });
 
-const assignTripSchema = z.object({
-  organizationId: z.string().uuid(),
-  vehicleId: z.string().uuid(),
-  driverName: z.string().trim().min(2).max(120),
-  driverPhone: z.string().trim().max(30).optional(),
-});
+const assignTripSchema = z.discriminatedUnion('internal', [
+  z.object({
+    internal: z.literal(true),
+    organizationId: z.string().uuid(),
+    vehicleId: z.string().uuid(),
+    driverId: z.string().uuid(),
+  }),
+  z.object({
+    internal: z.literal(false),
+    organizationId: z.string().uuid(),
+    vehicleId: z.string().uuid(),
+    driverName: z.string().trim().min(2).max(120),
+    driverPhone: z.string().trim().max(30).optional(),
+  }),
+]);
 
 const tripEventSchema = z.object({
   organizationId: z.string().uuid(),
