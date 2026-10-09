@@ -84,9 +84,12 @@ export class MessagesService {
   ) {
     await this.requireMembership(organizationId, userId);
 
-    const dedupeKey = contextId
-      ? `${contextType.toLowerCase()}:${contextId}`
-      : `support:${userId}`;
+    const dedupeKey =
+      contextType === 'PRODUCT_INQUIRY' && contextId
+        ? `product_inquiry:${organizationId}:${contextId}`
+        : contextId
+          ? `${contextType.toLowerCase()}:${contextId}`
+          : `support:${userId}`;
 
     const existing = await this.prisma.conversations.findUnique({
       where: { dedupe_key: dedupeKey },
@@ -127,6 +130,15 @@ export class MessagesService {
       const req = await this.prisma.service_requests.findUnique({ where: { id: contextId } });
       if (!req) throw new AppError('NOT_FOUND', 'Request not found');
       contextReference = req.reference;
+    } else if (contextType === 'PRODUCT_INQUIRY' && contextId) {
+      const supplierOrg = await this.prisma.organizations.findUnique({
+        where: { id: contextId },
+        select: { display_name: true },
+      });
+      if (!supplierOrg) throw new AppError('NOT_FOUND', 'Supplier not found');
+      contextReference = supplierOrg.display_name;
+      counterPartyOrgId = contextId;
+      counterPartyRole = 'SUPPLIER';
     }
 
     const convId = randomUUID();
@@ -139,7 +151,7 @@ export class MessagesService {
       `;
 
       const myRole = counterPartyOrgId
-        ? (counterPartyRole === 'PROVIDER' ? 'CUSTOMER' : 'PROVIDER')
+        ? (counterPartyRole === 'PROVIDER' ? 'CUSTOMER' : counterPartyRole === 'SUPPLIER' ? 'CUSTOMER' : 'PROVIDER')
         : 'CUSTOMER';
 
       await tx.$executeRaw`

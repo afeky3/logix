@@ -12,7 +12,7 @@ const listConvsQuery = z.object({
 
 const getOrCreateSchema = z.object({
   organizationId: z.string().uuid(),
-  contextType: z.enum(['ORDER', 'REQUEST_CLARIFICATION', 'SUPPORT', 'PURCHASE_ORDER', 'TRIP']),
+  contextType: z.enum(['ORDER', 'REQUEST_CLARIFICATION', 'SUPPORT', 'PURCHASE_ORDER', 'TRIP', 'PRODUCT_INQUIRY']),
   contextId: z.string().uuid().optional(),
 });
 

@@ -15,6 +15,7 @@ const createSchema = z.object({
   originText: z.string().max(100).optional(),
   packagingText: z.string().max(1000).optional(),
   imageFileId: z.string().uuid().optional(),
+  imageFileIds: z.array(z.string().uuid()).max(5).optional(),
 });
 
 const publishSchema = z.object({

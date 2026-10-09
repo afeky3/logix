@@ -12,6 +12,7 @@ export interface CreateProductInput {
   originText?: string;
   packagingText?: string;
   imageFileId?: string;
+  imageFileIds?: string[];
 }
 
 export interface PublishProductInput {
@@ -95,13 +96,14 @@ export class SupplierProductsService {
       },
     });
 
-    if (input.imageFileId) {
+    const allImageIds = input.imageFileIds ?? (input.imageFileId ? [input.imageFileId] : []);
+    for (let i = 0; i < allImageIds.length; i++) {
       const file = await this.prisma.files.findFirst({
-        where: { id: input.imageFileId, organization_id: orgId, purpose: 'PRODUCT_IMAGE' as never },
+        where: { id: allImageIds[i], organization_id: orgId, purpose: 'PRODUCT_IMAGE' as never },
       });
       if (file) {
         await this.prisma.product_images.create({
-          data: { id: randomUUID(), product_id: productId, file_id: file.id, is_cover: true },
+          data: { id: randomUUID(), product_id: productId, file_id: file.id, is_cover: i === 0, sort_order: i },
         });
       }
     }
