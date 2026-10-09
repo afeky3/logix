@@ -111,8 +111,25 @@ export class ProviderOpsService {
     return order;
   }
 
+  private async requireOrderParty(userId: string, orderId: string) {
+    const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError('NOT_FOUND', 'Order not found');
+    const isProvider = await this.prisma.memberships.findUnique({
+      where: { user_id_organization_id: { user_id: userId, organization_id: order.provider_org_id } },
+    });
+    const isCustomer = order.customer_org_id
+      ? await this.prisma.memberships.findUnique({
+          where: { user_id_organization_id: { user_id: userId, organization_id: order.customer_org_id } },
+        })
+      : null;
+    if ((!isProvider || isProvider.status !== 'ACTIVE') && (!isCustomer || isCustomer.status !== 'ACTIVE')) {
+      throw new AppError('FORBIDDEN', 'Not a party to this order');
+    }
+    return order;
+  }
+
   async getTrip(userId: string, orderId: string) {
-    await this.requireProviderOrder(userId, orderId);
+    await this.requireOrderParty(userId, orderId);
     const assignment = await this.prisma.trip_assignments.findFirst({
       where: { order_id: orderId, status: 'ACTIVE' },
     });
