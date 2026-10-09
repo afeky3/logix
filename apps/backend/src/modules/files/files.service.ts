@@ -126,17 +126,20 @@ export class FilesService {
       if (!isUploader) {
         // Chat attachments: allow any conversation participant to download
         if (file.purpose === 'CHAT_ATTACHMENT') {
-          const msg = await this.prisma.messages.findFirst({
-            where: { attachment_file_ids: { has: fileId } },
-            select: { conversation_id: true },
+          const msg = await this.prisma.$queryRaw<[{ conversation_id: string }?]>`
+            SELECT conversation_id FROM msg.messages
+            WHERE ${fileId}::uuid = ANY(attachment_file_ids)
+            LIMIT 1
+          `;
+          const convId = msg[0]?.conversation_id;
+          if (!convId) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
+          const memberships = await this.prisma.memberships.findMany({
+            where: { user_id: userId, status: 'ACTIVE' },
+            select: { organization_id: true },
           });
-          if (!msg) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
+          const orgIds = memberships.map((m) => m.organization_id);
           const participant = await this.prisma.conversation_participants.findFirst({
-            where: {
-              conversation_id: msg.conversation_id,
-              left_at: null,
-              organizations: { memberships: { some: { user_id: userId, status: 'ACTIVE' } } },
-            },
+            where: { conversation_id: convId, organization_id: { in: orgIds }, left_at: null },
           });
           if (!participant) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
         } else {
