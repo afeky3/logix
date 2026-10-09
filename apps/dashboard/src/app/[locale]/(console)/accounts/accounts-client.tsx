@@ -3,8 +3,16 @@
 import * as React from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { Input } from "@/components/ui/input";
+
+export interface AccountOrg {
+  id: string;
+  name: string;
+  kind: string;
+  role: string;
+}
 
 export interface AccountRow {
   id: string;
@@ -14,6 +22,7 @@ export interface AccountRow {
   status: "ACTIVE" | "SUSPENDED";
   lastLoginAt: string | null;
   createdAt: string;
+  organizations: AccountOrg[];
 }
 
 const FILTERS = ["", "ACTIVE", "SUSPENDED"] as const;
@@ -93,6 +102,7 @@ export function AccountsClient() {
                 <th className="px-3 py-2 text-start font-medium">{t("columns.name")}</th>
                 <th className="px-3 py-2 text-start font-medium">{t("columns.phone")}</th>
                 <th className="px-3 py-2 text-start font-medium">{t("columns.email")}</th>
+                <th className="px-3 py-2 text-start font-medium">{t("columns.organization")}</th>
                 <th className="px-3 py-2 text-start font-medium">{t("columns.status")}</th>
                 <th className="px-3 py-2 text-start font-medium">{t("columns.lastLogin")}</th>
                 <th className="px-3 py-2 text-start font-medium">{t("columns.created")}</th>
@@ -108,6 +118,19 @@ export function AccountsClient() {
                   </td>
                   <td className="bidi-isolate px-3 py-2 font-mono text-xs">{r.phone}</td>
                   <td className="px-3 py-2">{r.email ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    {r.organizations.length === 0 ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {r.organizations.map((o) => (
+                          <Link key={o.id} href={`/organizations/${o.id}`} className="hover:underline text-xs font-medium leading-tight">
+                            {o.name}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-3 py-2">{t(`status.${r.status}`)}</td>
                   <td className="px-3 py-2">{r.lastLoginAt ? new Date(r.lastLoginAt).toLocaleString() : t("never")}</td>
                   <td className="px-3 py-2">{new Date(r.createdAt).toLocaleDateString()}</td>

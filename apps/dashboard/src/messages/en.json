@@ -225,6 +225,7 @@
       "name": "Name",
       "phone": "Phone",
       "email": "Email",
+      "organization": "Organization",
       "status": "Status",
       "lastLogin": "Last login",
       "created": "Created"

@@ -225,6 +225,7 @@
       "name": "الاسم",
       "phone": "الموبايل",
       "email": "الإيميل",
+      "organization": "المنظمة",
       "status": "الحالة",
       "lastLogin": "آخر دخول",
       "created": "تاريخ الإنشاء"

@@ -39,6 +39,12 @@ export class AdminAccountsService {
           status: true,
           last_login_at: true,
           created_at: true,
+          memberships_memberships_user_idTousers: {
+            select: {
+              role: true,
+              organizations: { select: { id: true, display_name: true, kind: true } },
+            },
+          },
         },
       }),
       this.prisma.users.count({ where }),
@@ -53,6 +59,12 @@ export class AdminAccountsService {
         status: u.status,
         lastLoginAt: u.last_login_at,
         createdAt: u.created_at,
+        organizations: u.memberships_memberships_user_idTousers.map((m) => ({
+          id: m.organizations.id,
+          name: m.organizations.display_name,
+          kind: m.organizations.kind,
+          role: m.role,
+        })),
       })),
     };
   }
