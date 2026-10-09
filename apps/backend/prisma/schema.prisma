@@ -1040,6 +1040,7 @@ model users {
   release_requests_release_requests_approved_by_user_idTousers            release_requests[]          @relation("release_requests_approved_by_user_idTousers")
   release_requests_release_requests_requested_by_user_idTousers           release_requests[]          @relation("release_requests_requested_by_user_idTousers")
   stock_movements                                                         stock_movements[]
+  avatar_file_id                                                          String?                     @db.Uuid
 
   @@schema("identity")
 }
@@ -2086,6 +2087,7 @@ model organizations {
   drivers                                                                    drivers[]
   vehicles                                                                   vehicles[]
   sites                                                                      sites[]
+  logo_file_id                                                               String?                     @db.Uuid
 
   @@schema("org")
 }
