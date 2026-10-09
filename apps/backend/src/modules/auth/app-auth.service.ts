@@ -432,6 +432,7 @@ export class AppAuthService {
       fullName: user.full_name,
       locale: user.locale,
       status: user.status,
+      avatarFileId: user.avatar_file_id ?? null,
     };
   }
 

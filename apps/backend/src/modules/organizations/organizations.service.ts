@@ -107,6 +107,7 @@ export class OrganizationsService {
     return {
       id: org.id,
       displayName: org.display_name,
+      logoFileId: org.logo_file_id ?? null,
       verified: workspace.status === 'ACTIVE',
       memberSince: workspace.activated_at,
       ratingAvg: org.rating_avg ? Number(org.rating_avg) : null,

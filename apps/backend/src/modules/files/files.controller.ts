@@ -63,6 +63,24 @@ export class FilesController {
     });
   }
 
+  @Post('avatar')
+  async uploadAvatar(@Req() req: FastifyRequest, @CurrentUser() user: AppTokenPayload) {
+    const data = await req.file();
+    if (!data) throw new AppError('VALIDATION_FAILED', 'No file in the request', { details: [{ field: 'file', code: 'required' }] });
+    const buffer = await data.toBuffer();
+    return this.files.uploadAvatar({ userId: user.sub, filename: data.filename, mimeType: data.mimetype, buffer });
+  }
+
+  @Post('org-logo')
+  async uploadOrgLogo(@Req() req: FastifyRequest, @CurrentUser() user: AppTokenPayload) {
+    const data = await req.file();
+    if (!data) throw new AppError('VALIDATION_FAILED', 'No file in the request', { details: [{ field: 'file', code: 'required' }] });
+    const organizationId = (data.fields.organizationId as { value?: string } | undefined)?.value;
+    if (!organizationId) throw new AppError('VALIDATION_FAILED', 'organizationId is required', { details: [{ field: 'organizationId', code: 'required' }] });
+    const buffer = await data.toBuffer();
+    return this.files.uploadOrgLogo({ userId: user.sub, organizationId, purpose: 'AVATAR', filename: data.filename, mimeType: data.mimetype, buffer });
+  }
+
   @Get(':id')
   async download(
     @Param('id') id: string,

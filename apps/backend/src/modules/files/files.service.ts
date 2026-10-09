@@ -22,6 +22,13 @@ export interface UploadInput {
   buffer: Buffer;
 }
 
+export interface UploadAvatarInput {
+  userId: string;
+  filename: string;
+  mimeType: string;
+  buffer: Buffer;
+}
+
 /**
  * Files are stored directly on this server's disk — not S3 (no bucket set
  * up yet, T-skip deliberate per product call: "لسه هنستخدم S3"). The
@@ -113,10 +120,13 @@ export class FilesService {
     const file = await this.prisma.files.findUnique({ where: { id: fileId } });
     if (!file || file.deleted_at) throw new AppError('NOT_FOUND', 'File not found');
 
-    const isUploader = file.uploaded_by_user_id === userId;
-    if (!isUploader) {
-      if (!file.organization_id) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
-      await this.requireMembership(file.organization_id, userId);
+    // Avatars and logos are accessible to any authenticated user
+    if (file.purpose !== 'AVATAR') {
+      const isUploader = file.uploaded_by_user_id === userId;
+      if (!isUploader) {
+        if (!file.organization_id) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
+        await this.requireMembership(file.organization_id, userId);
+      }
     }
 
     const absPath = this.resolveSafePath(file.storage_key);
@@ -126,6 +136,83 @@ export class FilesService {
       mimeType: file.mime_type,
       originalName: file.original_name ?? `${file.id}`,
     };
+  }
+
+  /** Upload a user avatar — no org required; stored under user's own folder. */
+  async uploadAvatar(input: UploadAvatarInput) {
+    const AVATAR_MIME: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+    };
+    const ext = AVATAR_MIME[input.mimeType];
+    if (!ext) throw new AppError('VALIDATION_FAILED', 'Only JPEG, PNG or WebP allowed for avatars');
+
+    const id = randomUUID();
+    const storageKey = `avatars/${input.userId}/${id}${ext}`;
+    const absPath = this.resolveSafePath(storageKey);
+    await mkdir(join(this.storageDir, 'avatars', input.userId), { recursive: true, mode: 0o700 });
+    await writeFile(absPath, input.buffer, { mode: 0o600 });
+    const sha256 = createHash('sha256').update(input.buffer).digest();
+
+    const file = await this.prisma.files.create({
+      data: {
+        id,
+        bucket: 'local-disk',
+        storage_key: storageKey,
+        purpose: 'AVATAR',
+        mime_type: input.mimeType,
+        size_bytes: BigInt(input.buffer.length),
+        sha256,
+        original_name: input.filename,
+        uploaded_by_user_id: input.userId,
+        upload_completed_at: new Date(),
+        scan_status: 'PENDING',
+      },
+    });
+
+    await this.prisma.users.update({ where: { id: input.userId }, data: { avatar_file_id: id } });
+    return { id: file.id };
+  }
+
+  /** Upload an org logo — requires OWNER or MANAGER membership. */
+  async uploadOrgLogo(input: UploadInput) {
+    const membership = await this.prisma.memberships.findUnique({
+      where: { user_id_organization_id: { user_id: input.userId, organization_id: input.organizationId } },
+    });
+    if (!membership || membership.status !== 'ACTIVE' || !['OWNER', 'MANAGER'].includes(membership.role))
+      throw new AppError('FORBIDDEN', 'Only owners or managers can update the org logo');
+
+    const LOGO_MIME: Record<string, string> = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+    const ext = LOGO_MIME[input.mimeType];
+    if (!ext) throw new AppError('VALIDATION_FAILED', 'Only JPEG, PNG or WebP allowed for logos');
+
+    const id = randomUUID();
+    const storageKey = `logos/${input.organizationId}/${id}${ext}`;
+    const absPath = this.resolveSafePath(storageKey);
+    await mkdir(join(this.storageDir, 'logos', input.organizationId), { recursive: true, mode: 0o700 });
+    await writeFile(absPath, input.buffer, { mode: 0o600 });
+    const sha256 = createHash('sha256').update(input.buffer).digest();
+
+    const file = await this.prisma.files.create({
+      data: {
+        id,
+        bucket: 'local-disk',
+        storage_key: storageKey,
+        purpose: 'AVATAR',
+        mime_type: input.mimeType,
+        size_bytes: BigInt(input.buffer.length),
+        sha256,
+        original_name: input.filename,
+        organization_id: input.organizationId,
+        uploaded_by_user_id: input.userId,
+        upload_completed_at: new Date(),
+        scan_status: 'PENDING',
+      },
+    });
+
+    await this.prisma.organizations.update({ where: { id: input.organizationId }, data: { logo_file_id: id } });
+    return { id: file.id };
   }
 
   /** Staff review access — no membership check, any file. Stopgap until
