@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { StaffAuthGuard } from '../../common/guards/staff-auth.guard';
+import { StaffAuthGuard } from '../../common/auth/staff-auth.guard';
 import { AdminMarketplaceService } from './admin-marketplace.service';
 
 @Controller('admin/marketplace')
