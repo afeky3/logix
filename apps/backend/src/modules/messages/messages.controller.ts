@@ -24,7 +24,9 @@ const listMsgsQuery = z.object({
 
 const sendSchema = z.object({
   organizationId: z.string().uuid(),
-  body: z.string().min(1).max(4000),
+  body: z.string().min(1).max(4000).optional(),
+  kind: z.enum(['TEXT', 'ATTACHMENT']).default('TEXT'),
+  fileId: z.string().uuid().optional(),
 });
 
 const markReadSchema = z.object({
@@ -72,15 +74,15 @@ export class MessagesController {
     return this.messages.listMessages(user.sub, organizationId, id, cursor, limit);
   }
 
-  /** Send a text message. */
+  /** Send a text or attachment message. */
   @Post('conversations/:id/messages')
   send(
     @Param('id') id: string,
     @Body() body: unknown,
     @CurrentUser() user: AppTokenPayload,
   ) {
-    const { organizationId, body: text } = parseBody(sendSchema, body);
-    return this.messages.sendMessage(user.sub, organizationId, id, text);
+    const { organizationId, body: text, kind, fileId } = parseBody(sendSchema, body);
+    return this.messages.sendMessage(user.sub, organizationId, id, text, kind, fileId);
   }
 
   /** Mark all messages in a conversation as read. */

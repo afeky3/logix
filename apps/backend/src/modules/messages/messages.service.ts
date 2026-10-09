@@ -228,7 +228,9 @@ export class MessagesService {
     userId: string,
     organizationId: string,
     conversationId: string,
-    body: string,
+    body: string | undefined,
+    kind: 'TEXT' | 'ATTACHMENT' = 'TEXT',
+    fileId?: string,
   ) {
     await this.requireMembership(organizationId, userId);
     await this.requireParticipant(conversationId, organizationId);
@@ -240,10 +242,17 @@ export class MessagesService {
     const msgId = randomUUID();
     const now = new Date();
 
-    await this.prisma.$executeRaw`
-      INSERT INTO msg.messages (id, conversation_id, kind, sender_user_id, sender_org_id, body, created_at)
-      VALUES (${msgId}::uuid, ${conversationId}::uuid, 'TEXT'::core.message_kind, ${userId}::uuid, ${organizationId}::uuid, ${body}, ${now}::timestamptz)
-    `;
+    if (kind === 'ATTACHMENT' && fileId) {
+      await this.prisma.$executeRaw`
+        INSERT INTO msg.messages (id, conversation_id, kind, sender_user_id, sender_org_id, body, attachment_file_ids, created_at)
+        VALUES (${msgId}::uuid, ${conversationId}::uuid, 'ATTACHMENT'::core.message_kind, ${userId}::uuid, ${organizationId}::uuid, ${body ?? null}, ARRAY[${fileId}::uuid], ${now}::timestamptz)
+      `;
+    } else {
+      await this.prisma.$executeRaw`
+        INSERT INTO msg.messages (id, conversation_id, kind, sender_user_id, sender_org_id, body, created_at)
+        VALUES (${msgId}::uuid, ${conversationId}::uuid, 'TEXT'::core.message_kind, ${userId}::uuid, ${organizationId}::uuid, ${body ?? null}, ${now}::timestamptz)
+      `;
+    }
 
     await this.prisma.$executeRaw`
       UPDATE msg.conversations SET last_message_at = ${now}::timestamptz, updated_at = ${now}::timestamptz
@@ -379,6 +388,7 @@ export class MessagesService {
       sender_user_id: string | null;
       sender_org_id: string | null;
       is_masked: boolean;
+      attachment_file_ids: string[];
       created_at: Date;
       edited_at: Date | null;
       organizations: { display_name: string } | null;
@@ -392,6 +402,7 @@ export class MessagesService {
       kind: m.kind,
       body: m.is_masked ? null : m.body,
       isMasked: m.is_masked,
+      fileId: m.attachment_file_ids[0] ?? null,
       senderOrgId: m.sender_org_id,
       senderName: m.organizations?.display_name ?? m.users?.full_name ?? null,
       mine: m.sender_org_id === myOrgId,
