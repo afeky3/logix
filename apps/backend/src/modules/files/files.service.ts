@@ -215,6 +215,17 @@ export class FilesService {
     return { id: file.id };
   }
 
+  /** Public download for avatars/logos — no auth required, AVATAR purpose only. */
+  async downloadAvatar(fileId: string) {
+    const file = await this.prisma.files.findUnique({ where: { id: fileId } });
+    if (!file || file.deleted_at || file.purpose !== 'AVATAR') {
+      throw new AppError('NOT_FOUND', 'Avatar not found');
+    }
+    const absPath = this.resolveSafePath(file.storage_key);
+    const buffer = await readFile(absPath);
+    return { buffer, mimeType: file.mime_type };
+  }
+
   /** Staff review access — no membership check, any file. Stopgap until
    * admin-kyb gets proper case-assignment scoping. */
   async downloadAsStaff(fileId: string) {

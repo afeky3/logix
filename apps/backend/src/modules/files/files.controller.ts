@@ -95,3 +95,20 @@ export class FilesController {
     return buffer;
   }
 }
+
+/** Public controller — no JWT guard. Serves only AVATAR-purpose files. */
+@Controller('files/avatar')
+export class PublicAvatarController {
+  constructor(private readonly files: FilesService) {}
+
+  @Get(':id')
+  async download(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    const { buffer, mimeType } = await this.files.downloadAvatar(id);
+    res.header('Content-Type', mimeType);
+    res.header('Cache-Control', 'public, max-age=86400, immutable');
+    return buffer;
+  }
+}
