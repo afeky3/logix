@@ -10,6 +10,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { FilesModule } from './modules/files/files.module';
 import { AdminKybModule } from './modules/admin-kyb/admin-kyb.module';
 import { AdminAccountsModule } from './modules/admin-accounts/admin-accounts.module';
+import { AdminOrganizationsModule } from './modules/admin-organizations/admin-organizations.module';
 import { AdminSettlementsModule } from './modules/admin-settlements/admin-settlements.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { CasesModule } from './modules/cases/cases.module';
@@ -41,6 +42,7 @@ import { OrgMembersModule } from './modules/org-members/org-members.module';
     FilesModule,
     AdminKybModule,
     AdminAccountsModule,
+    AdminOrganizationsModule,
     AdminSettlementsModule,
     ShippingModule,
     CasesModule,

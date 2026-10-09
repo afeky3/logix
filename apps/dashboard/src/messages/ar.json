@@ -314,5 +314,32 @@
       "INVALID": "غير صحيحة",
       "WITHDRAWN": "تم التراجع"
     }
+  },
+  "organizations": {
+    "title": "المنشآت",
+    "subtitle": "كل المنظمات المسجّلة في المنصة",
+    "loading": "جارٍ التحميل…",
+    "empty": "مفيش منظمات مطابقة.",
+    "searchPlaceholder": "ابحث بالاسم",
+    "backToList": "رجوع للمنشآت",
+    "kindBusiness": "شركة",
+    "kindIndividual": "فرد",
+    "membersTitle": "الأعضاء",
+    "noMembers": "لا يوجد أعضاء لهذه المنشأة.",
+    "statusActive": "نشط",
+    "columns": {
+      "name": "الاسم",
+      "kind": "النوع",
+      "workspaces": "الحسابات",
+      "members": "الأعضاء",
+      "createdAt": "تاريخ الإنشاء"
+    },
+    "memberColumns": {
+      "name": "الاسم",
+      "phone": "الموبايل",
+      "role": "الدور",
+      "status": "الحالة",
+      "joinedAt": "تاريخ الانضمام"
+    }
   }
 }

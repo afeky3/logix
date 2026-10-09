@@ -314,5 +314,32 @@
       "INVALID": "Invalid",
       "WITHDRAWN": "Withdrawn"
     }
+  },
+  "organizations": {
+    "title": "Organizations",
+    "subtitle": "All organizations registered on the platform",
+    "loading": "Loading…",
+    "empty": "No matching organizations.",
+    "searchPlaceholder": "Search by name",
+    "backToList": "Back to organizations",
+    "kindBusiness": "Business",
+    "kindIndividual": "Individual",
+    "membersTitle": "Members",
+    "noMembers": "No members in this organization.",
+    "statusActive": "Active",
+    "columns": {
+      "name": "Name",
+      "kind": "Type",
+      "workspaces": "Workspaces",
+      "members": "Members",
+      "createdAt": "Created"
+    },
+    "memberColumns": {
+      "name": "Name",
+      "phone": "Phone",
+      "role": "Role",
+      "status": "Status",
+      "joinedAt": "Joined"
+    }
   }
 }
