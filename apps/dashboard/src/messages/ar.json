@@ -245,6 +245,33 @@
     "casesTitle": "التحقق",
     "none": "ولا واحد"
   },
+  "marketplace": {
+    "title": "السوق",
+    "subtitle": "كل منتجات الموردين بجميع الحالات",
+    "searchPlaceholder": "ابحث باسم المنتج أو المورد",
+    "allStatuses": "الكل",
+    "count": "{count} منتج",
+    "loading": "جاري التحميل…",
+    "empty": "مفيش منتجات مطابقة للبحث.",
+    "currency": "ر.س",
+    "status": {
+      "PUBLISHED": "منشور",
+      "PENDING_REVIEW": "في انتظار المراجعة",
+      "DRAFT": "مسودة",
+      "PAUSED": "موقوف",
+      "OUT_OF_STOCK": "نفذ المخزون"
+    },
+    "columns": {
+      "name": "المنتج",
+      "supplier": "المورد",
+      "category": "الفئة",
+      "price": "سعر الوحدة",
+      "stock": "المخزون",
+      "moq": "الحد الأدنى",
+      "status": "الحالة",
+      "created": "تاريخ الإضافة"
+    }
+  },
   "finance": {
     "title": "المالية",
     "subtitle": "مستحقات مقدمي الخدمة: مجدولة أو موقوفة أو مدفوعة",

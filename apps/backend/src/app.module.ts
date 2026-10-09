@@ -21,6 +21,7 @@ import { RequestsModule } from './modules/requests/requests.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { ProviderOpsModule } from './modules/provider-ops/provider-ops.module';
 import { OrgMembersModule } from './modules/org-members/org-members.module';
+import { AdminMarketplaceModule } from './modules/admin-marketplace/admin-marketplace.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { OrgMembersModule } from './modules/org-members/org-members.module';
     OrdersModule,
     ProviderOpsModule,
     OrgMembersModule,
+    AdminMarketplaceModule,
   ],
 })
 export class AppModule {}

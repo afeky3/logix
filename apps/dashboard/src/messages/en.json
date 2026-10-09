@@ -245,6 +245,33 @@
     "casesTitle": "Verification",
     "none": "None"
   },
+  "marketplace": {
+    "title": "Marketplace",
+    "subtitle": "All supplier products across every status",
+    "searchPlaceholder": "Search by product name or supplier",
+    "allStatuses": "All",
+    "count": "{count} products",
+    "loading": "Loading…",
+    "empty": "No products match this search.",
+    "currency": "SAR",
+    "status": {
+      "PUBLISHED": "Published",
+      "PENDING_REVIEW": "Pending review",
+      "DRAFT": "Draft",
+      "PAUSED": "Paused",
+      "OUT_OF_STOCK": "Out of stock"
+    },
+    "columns": {
+      "name": "Product",
+      "supplier": "Supplier",
+      "category": "Category",
+      "price": "Unit price",
+      "stock": "Stock",
+      "moq": "MOQ",
+      "status": "Status",
+      "created": "Created"
+    }
+  },
   "finance": {
     "title": "Finance",
     "subtitle": "Provider payouts: settlements scheduled, held, or paid",
