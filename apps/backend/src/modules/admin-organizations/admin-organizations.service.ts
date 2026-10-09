@@ -53,15 +53,15 @@ export class AdminOrganizationsService {
       where: { organization_id: orgId },
       orderBy: { joined_at: 'asc' },
       include: {
-        users: { select: { id: true, phone_e164: true, full_name: true } },
+        users_memberships_user_idTousers: { select: { id: true, phone_e164: true, full_name: true } },
       },
     });
 
     return rows.map((m) => ({
       id: m.id,
       userId: m.user_id,
-      phoneE164: m.users.phone_e164,
-      fullName: m.users.full_name,
+      phoneE164: m.users_memberships_user_idTousers.phone_e164,
+      fullName: m.users_memberships_user_idTousers.full_name,
       role: m.role,
       status: m.status,
       joinedAt: m.joined_at,
