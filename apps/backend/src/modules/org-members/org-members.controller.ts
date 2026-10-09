@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -8,6 +8,10 @@ import { OrgMembersService } from './org-members.service';
 
 const inviteSchema = z.object({
   phoneE164: z.string().regex(/^\+\d{7,15}$/, 'Must be E.164 format e.g. +966501234567'),
+  role: z.enum(['MANAGER', 'MEMBER', 'DRIVER']),
+});
+
+const changeRoleSchema = z.object({
   role: z.enum(['MANAGER', 'MEMBER', 'DRIVER']),
 });
 
@@ -33,6 +37,18 @@ export class OrgMembersController {
   @Get('organizations/:id/members')
   listMembers(@Param('id') orgId: string, @CurrentUser() user: AppTokenPayload) {
     return this.svc.listMembers(orgId, user.sub);
+  }
+
+  /** Change a member's role (owner only) */
+  @Patch('organizations/:id/members/:memberId/role')
+  changeMemberRole(
+    @Param('id') orgId: string,
+    @Param('memberId') memberId: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    const { role } = parseBody(changeRoleSchema, body);
+    return this.svc.changeMemberRole(orgId, user.sub, memberId, role);
   }
 
   /** Remove a member (owner only) */

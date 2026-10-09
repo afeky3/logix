@@ -317,6 +317,7 @@ export class AppAuthService {
       m.organizations.org_workspaces.map((w) => ({
         organizationId: m.organization_id,
         organizationName: m.organizations.display_name,
+        orgKind: m.organizations.kind,
         workspace: w.workspace,
         status: w.status,
         role: m.role,

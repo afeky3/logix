@@ -49,6 +49,11 @@ export class OrganizationsController {
     return this.orgs.getProviderProfile(id);
   }
 
+  @Get(':id/summary')
+  getOrgSummary(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.orgs.getOrgSummary(id, user.sub);
+  }
+
   @Post(':id/service-areas')
   addServiceArea(
     @Param('id') id: string,

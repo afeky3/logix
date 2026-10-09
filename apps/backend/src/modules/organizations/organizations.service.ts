@@ -183,4 +183,24 @@ export class OrganizationsService {
     await this.prisma.service_areas.delete({ where: { id: areaId } });
     return { success: true };
   }
+
+  /** Org summary for the account screen — member's own org card. */
+  async getOrgSummary(orgId: string, userId: string) {
+    await this.requireMembership(orgId, userId);
+    const [org, memberCount] = await Promise.all([
+      this.prisma.organizations.findUnique({
+        where: { id: orgId },
+        select: { id: true, display_name: true, kind: true, logo_file_id: true },
+      }),
+      this.prisma.memberships.count({ where: { organization_id: orgId, status: 'ACTIVE' } }),
+    ]);
+    if (!org) throw new AppError('NOT_FOUND', 'Organization not found');
+    return {
+      id: org.id,
+      name: org.display_name,
+      kind: org.kind,
+      logoFileId: org.logo_file_id ?? null,
+      memberCount,
+    };
+  }
 }

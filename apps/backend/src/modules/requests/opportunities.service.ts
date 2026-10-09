@@ -43,6 +43,10 @@ export class OpportunitiesService {
     }
 
     const d = match.service_requests.transport_request_details;
+    const customerOrg = await this.prisma.organizations.findUnique({
+      where: { id: match.service_requests.customer_org_id },
+      select: { display_name: true, kind: true },
+    });
     return {
       ...this.serializeSummary(match),
       pickupLabel: d?.pickup_label,
@@ -55,8 +59,9 @@ export class OpportunitiesService {
       borderInstructions: d?.border_instructions,
       vehiclesCount: d?.vehicles_count,
       notes: match.service_requests.notes,
-      // Masked — never the real customer org. D-16.
       customerIndicator: 'Verified customer',
+      requesterName: customerOrg?.kind === 'INDIVIDUAL' ? null : (customerOrg?.display_name ?? null),
+      requesterIsIndividual: customerOrg?.kind === 'INDIVIDUAL',
     };
   }
 

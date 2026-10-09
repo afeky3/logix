@@ -198,6 +198,22 @@ export class OrgMembersService {
     }));
   }
 
+  // ---- Change member role ---------------------------------------------------
+
+  async changeMemberRole(
+    orgId: string,
+    requesterId: string,
+    membershipId: string,
+    role: 'MANAGER' | 'MEMBER' | 'DRIVER',
+  ) {
+    await this.requireOwner(orgId, requesterId);
+    const m = await this.prisma.memberships.findUnique({ where: { id: membershipId } });
+    if (!m || m.organization_id !== orgId) throw new AppError('NOT_FOUND', 'Member not found');
+    if (m.role === 'OWNER') throw new AppError('BUSINESS_RULE_VIOLATION', 'Cannot change the owner role');
+    await this.prisma.memberships.update({ where: { id: membershipId }, data: { role: role as never } });
+    return { success: true };
+  }
+
   // ---- Remove member --------------------------------------------------------
 
   async removeMember(orgId: string, ownerId: string, membershipId: string) {
