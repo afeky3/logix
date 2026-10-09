@@ -122,7 +122,6 @@ export class RequestsService {
     const rows = await this.prisma.service_requests.findMany({
       where: {
         customer_org_id: organizationId,
-        service_type: 'TRANSPORT',
         status: status ? (status as never) : undefined,
       },
       orderBy: { created_at: 'desc' },

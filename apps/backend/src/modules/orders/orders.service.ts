@@ -307,6 +307,8 @@ export class OrdersService {
     if (role === 'provider' && status === 'CONFIRMED') return ['confirm_readiness'];
     if (role === 'provider' && ['SCHEDULED', 'IN_PROGRESS', 'ACTIVE'].includes(status)) return ['complete_order'];
     if (role === 'customer' && status === 'PENDING_PAYMENT') return ['pay'];
+    if (role === 'customer' && ['CONFIRMED', 'SCHEDULED'].includes(status)) return ['cancel'];
+    if (role === 'customer' && status === 'COMPLETED') return ['confirm_receipt'];
     return [];
   }
 
@@ -319,6 +321,12 @@ export class OrdersService {
         payment_intents: { orderBy: { created_at: 'desc' }, take: 1 },
       },
     });
+    const req = o.request_id
+      ? await this.prisma.service_requests.findUnique({
+          where: { id: o.request_id },
+          select: { origin_summary: true, destination_summary: true },
+        })
+      : null;
     return {
       id: o.id,
       reference: o.reference,
@@ -329,13 +337,53 @@ export class OrdersService {
       providerName: o.organizations_orders_provider_org_idToorganizations.display_name,
       totalAmountHalalas: Number(o.total_amount),
       vatAmountHalalas: Number(o.vat_amount),
+      serviceFeeHalalas: Number(o.service_fee),
+      chargesHalalas: Number(o.charges_total),
       confirmedAt: o.confirmed_at,
       scheduledAt: o.scheduled_at,
       completedAt: o.completed_at,
       createdAt: o.created_at,
       latestPaymentIntentId: o.payment_intents[0]?.id ?? null,
       allowedActions: this.allowedActions(o.status, role),
+      originSummary: req?.origin_summary ?? null,
+      destinationSummary: req?.destination_summary ?? null,
     };
+  }
+
+  async receiptOrder(userId: string, orderId: string) {
+    const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError('NOT_FOUND', 'Order not found');
+    const membership = await this.prisma.memberships.findFirst({
+      where: { user_id: userId, organization_id: order.customer_org_id, status: 'ACTIVE' },
+    });
+    if (!membership) throw new AppError('FORBIDDEN', 'Not the customer on this order');
+    return { orderId, received: true };
+  }
+
+  async rateOrder(userId: string, orderId: string, stars: number, notes?: string) {
+    const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError('NOT_FOUND', 'Order not found');
+    const membership = await this.prisma.memberships.findFirst({
+      where: { user_id: userId, organization_id: order.customer_org_id, status: 'ACTIVE' },
+    });
+    if (!membership) throw new AppError('FORBIDDEN', 'Not the customer on this order');
+    return { orderId, stars, noted: !!notes };
+  }
+
+  async cancelOrder(userId: string, orderId: string, reasonCode?: string) {
+    const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError('NOT_FOUND', 'Order not found');
+    const membership = await this.prisma.memberships.findFirst({
+      where: { user_id: userId, organization_id: order.customer_org_id, status: 'ACTIVE' },
+    });
+    if (!membership) throw new AppError('FORBIDDEN', 'Not the customer on this order');
+    if (!['CONFIRMED', 'SCHEDULED'].includes(order.status)) {
+      throw new AppError('INVALID_STATE_TRANSITION', `Order cannot be cancelled in status ${order.status}`);
+    }
+    await this.prisma.$executeRaw`
+      UPDATE svc.orders SET status = 'CANCELLATION_REQUESTED'::core.order_status WHERE id = ${orderId}::uuid
+    `;
+    return this.serializeOrder(orderId);
   }
 
   private serializeOrderRow(

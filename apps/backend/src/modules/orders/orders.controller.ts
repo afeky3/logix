@@ -8,6 +8,8 @@ import { OrdersService } from './orders.service';
 
 const simulateSchema = z.object({ outcome: z.enum(['succeed', 'fail']) });
 const confirmReadinessSchema = z.object({ organizationId: z.string().uuid() });
+const ratingSchema = z.object({ stars: z.number().int().min(1).max(5), notes: z.string().max(1000).optional() });
+const cancelConfirmedSchema = z.object({ reasonCode: z.string().max(100).optional() });
 const feedQuery = z.object({
   organizationId: z.string().uuid(),
   role: z.enum(['customer', 'provider']),
@@ -76,5 +78,30 @@ export class OrdersController {
   ) {
     const { organizationId } = parseBody(confirmReadinessSchema, body);
     return this.orders.confirmReadiness(user.sub, id, organizationId);
+  }
+
+  @Post('orders/:id/receipt')
+  receipt(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.orders.receiptOrder(user.sub, id);
+  }
+
+  @Post('orders/:id/rating')
+  rate(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    const { stars, notes } = parseBody(ratingSchema, body);
+    return this.orders.rateOrder(user.sub, id, stars, notes);
+  }
+
+  @Post('orders/:id/cancel')
+  cancelConfirmed(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    const { reasonCode } = parseBody(cancelConfirmedSchema, body);
+    return this.orders.cancelOrder(user.sub, id, reasonCode);
   }
 }
