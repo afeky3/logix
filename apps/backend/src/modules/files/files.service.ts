@@ -124,8 +124,25 @@ export class FilesService {
     if (file.purpose !== 'AVATAR') {
       const isUploader = file.uploaded_by_user_id === userId;
       if (!isUploader) {
-        if (!file.organization_id) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
-        await this.requireMembership(file.organization_id, userId);
+        // Chat attachments: allow any conversation participant to download
+        if (file.purpose === 'CHAT_ATTACHMENT') {
+          const msg = await this.prisma.messages.findFirst({
+            where: { attachment_file_ids: { has: fileId } },
+            select: { conversation_id: true },
+          });
+          if (!msg) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
+          const participant = await this.prisma.conversation_participants.findFirst({
+            where: {
+              conversation_id: msg.conversation_id,
+              left_at: null,
+              organizations: { memberships: { some: { user_id: userId, status: 'ACTIVE' } } },
+            },
+          });
+          if (!participant) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
+        } else {
+          if (!file.organization_id) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
+          await this.requireMembership(file.organization_id, userId);
+        }
       }
     }
 
