@@ -3,6 +3,19 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 
+const REQUEST_INCLUDE = {
+  service_requests: {
+    include: {
+      transport_request_details: true,
+      shipping_request_details: {
+        select: { mode: true, origin_label: true, destination_label: true, cargo_ready_date: true, weight_kg: true },
+      },
+      warehousing_request_details: { select: { start_date: true, weight_kg: true } },
+      customs_request_details: { select: { movement: true, goods_description: true } },
+    },
+  },
+} as const;
+
 /** Provider-facing pre-award view — never exposes customer identity,
  * contacts or files (D-16). backend/md/modules/05-requests-quotes-matching.md §2. */
 @Injectable()
@@ -23,7 +36,7 @@ export class OpportunitiesService {
     const matches = await this.prisma.request_matches.findMany({
       where: { provider_org_id: organizationId, declined_at: null },
       orderBy: { created_at: 'desc' },
-      include: { service_requests: { include: { transport_request_details: true } } },
+      include: REQUEST_INCLUDE,
     });
     return matches
       .filter((m) => ['SUBMITTED', 'QUOTED'].includes(m.service_requests.status))
@@ -34,7 +47,7 @@ export class OpportunitiesService {
     await this.requireMembership(organizationId, userId);
     const match = await this.prisma.request_matches.findUnique({
       where: { request_id_provider_org_id: { request_id: requestId, provider_org_id: organizationId } },
-      include: { service_requests: { include: { transport_request_details: true } } },
+      include: REQUEST_INCLUDE,
     });
     if (!match) throw new AppError('NOT_FOUND', 'Opportunity not found');
 
@@ -132,6 +145,7 @@ export class OpportunitiesService {
       id: string;
       reference: string;
       status: string;
+      service_type: string;
       service_date: Date | null;
       expires_at: Date | null;
       origin_summary: string | null;
@@ -141,22 +155,45 @@ export class OpportunitiesService {
         vehicle_type_code: string | null;
         transport_date: Date | null;
       } | null;
+      shipping_request_details: {
+        mode: string | null;
+        origin_label: string | null;
+        destination_label: string | null;
+        cargo_ready_date: Date | null;
+        weight_kg: { toString(): string } | null;
+      } | null;
+      warehousing_request_details: { start_date: Date | null; weight_kg: { toString(): string } | null } | null;
+      customs_request_details: { movement: string | null; goods_description: string | null } | null;
     };
   }) {
     const r = m.service_requests;
+    const ship = r.shipping_request_details;
+    const wh = r.warehousing_request_details;
+    const cu = r.customs_request_details;
+    const weight = ship?.weight_kg ?? wh?.weight_kg;
     return {
       requestId: r.id,
       reference: r.reference,
       status: r.status,
+      serviceType: r.service_type,
       activity: m.activity,
       viewed: m.viewed_at != null,
       quoted: m.quoted_at != null,
-      serviceDate: r.service_date ?? r.transport_request_details?.transport_date ?? null,
+      serviceDate:
+        r.service_date ??
+        r.transport_request_details?.transport_date ??
+        ship?.cargo_ready_date ??
+        wh?.start_date ??
+        null,
       expiresAt: r.expires_at,
-      originSummary: r.origin_summary,
-      destinationSummary: r.destination_summary,
+      originSummary: r.origin_summary ?? ship?.origin_label ?? null,
+      destinationSummary: r.destination_summary ?? ship?.destination_label ?? null,
       scope: r.transport_request_details?.scope,
       vehicleTypeCode: r.transport_request_details?.vehicle_type_code,
+      freightMode: ship?.mode ?? null,
+      weightKg: weight != null ? Number(weight.toString()) : null,
+      customsMovement: cu?.movement ?? null,
+      goodsDescription: cu?.goods_description ?? null,
       customerIndicator: 'Verified customer',
     };
   }
