@@ -8,7 +8,6 @@ import { ShippingService } from './shipping.service';
 
 const detailsSchema = z.object({
   freightMode: z.enum(['SEA', 'AIR', 'LAND']).optional(),
-  tradeDirection: z.enum(['IMPORT', 'EXPORT']).optional(),
   originCountry: z.enum(['CN', 'AE', 'TR', 'SA', 'OTHER']).optional(),
   originCountryOther: z.string().max(120).optional(),
   originLabel: z.string().max(200).optional(),

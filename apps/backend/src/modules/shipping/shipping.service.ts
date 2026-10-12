@@ -5,7 +5,6 @@ import { AppError } from '../../common/errors/app-error';
 
 export interface ShippingDetailsInput {
   freightMode?: 'SEA' | 'AIR' | 'LAND';
-  tradeDirection?: 'IMPORT' | 'EXPORT';
   originCountry?: 'CN' | 'AE' | 'TR' | 'SA' | 'OTHER';
   originCountryOther?: string;
   originLabel?: string;
@@ -78,7 +77,6 @@ export class ShippingService {
 
     const data = {
       mode: input.freightMode,
-      trade_direction: input.tradeDirection,
       origin_country_code: input.originCountry === 'OTHER' ? null : input.originCountry,
       origin_country_other: input.originCountry === 'OTHER' ? input.originCountryOther : undefined,
       origin_label: input.originLabel,
@@ -127,7 +125,6 @@ export class ShippingService {
     const d = await this.prisma.shipping_request_details.findUnique({ where: { request_id: requestId } });
     const missing: string[] = [];
     if (!d?.mode) missing.push('freightMode');
-    if (!d?.trade_direction) missing.push('tradeDirection');
     if (!d?.origin_country_code && !d?.origin_country_other) missing.push('originCountry');
     if (!d?.destination_country_code && !d?.destination_country_other) missing.push('destinationCountry');
     if (!d?.origin_label) missing.push('originLabel');
