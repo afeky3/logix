@@ -1454,6 +1454,7 @@ model conversations {
   context_id                String?                     @db.Uuid
   context_reference         String?
   title                     String?
+  order_status              String?                     @db.VarChar(50)
   status                    conversation_status         @default(OPEN)
   pre_award_masking         Boolean                     @default(true)
   last_message_at           DateTime?                   @db.Timestamptz(6)

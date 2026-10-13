@@ -120,8 +120,8 @@ export class FilesService {
     const file = await this.prisma.files.findUnique({ where: { id: fileId } });
     if (!file || file.deleted_at) throw new AppError('NOT_FOUND', 'File not found');
 
-    // Avatars and logos are accessible to any authenticated user
-    if (file.purpose !== 'AVATAR') {
+    // Avatars, logos and product images are accessible to any authenticated user
+    if (file.purpose !== 'AVATAR' && file.purpose !== 'PRODUCT_IMAGE') {
       const isUploader = file.uploaded_by_user_id === userId;
       if (!isUploader) {
         // Chat attachments: allow any conversation participant to download

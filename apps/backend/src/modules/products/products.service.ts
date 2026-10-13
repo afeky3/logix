@@ -21,6 +21,7 @@ export class ProductsService {
       include: {
         organizations: { select: { display_name: true } },
         product_categories: { select: { slug: true, name_ar: true, name_en: true } },
+        product_images: { select: { file_id: true, is_cover: true }, orderBy: { sort_order: 'asc' }, take: 1 },
       },
     });
     return rows.map((p) => this.summarize(p));
@@ -71,6 +72,7 @@ export class ProductsService {
     stock_qty: number;
     organizations: { display_name: string };
     product_categories: { slug: string; name_ar: string; name_en: string };
+    product_images: { file_id: string; is_cover: boolean }[];
   }) {
     return {
       id: p.id,
@@ -80,6 +82,7 @@ export class ProductsService {
       unitPriceHalalas: Number(p.unit_price),
       moq: p.moq,
       stockQty: p.stock_qty,
+      coverImageFileId: p.product_images[0]?.file_id ?? null,
     };
   }
 }

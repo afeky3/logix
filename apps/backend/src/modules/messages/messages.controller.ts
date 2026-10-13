@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -35,6 +35,11 @@ const markReadSchema = z.object({
 
 const unreadQuery = z.object({
   organizationId: z.string().uuid(),
+});
+
+const orderStatusSchema = z.object({
+  organizationId: z.string().uuid(),
+  orderStatus: z.enum(['NEW', 'PREPARING', 'READY_TO_SHIP', 'SHIPPED', 'COMPLETED']),
 });
 
 @Controller()
@@ -83,6 +88,17 @@ export class MessagesController {
   ) {
     const { organizationId, body: text, kind, fileId } = parseBody(sendSchema, body);
     return this.messages.sendMessage(user.sub, organizationId, id, text, kind, fileId);
+  }
+
+  /** Update order status on a PRODUCT_INQUIRY conversation (supplier side). */
+  @Patch('conversations/:id/order-status')
+  setOrderStatus(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    const { organizationId, orderStatus } = parseBody(orderStatusSchema, body);
+    return this.messages.setOrderStatus(user.sub, organizationId, id, orderStatus);
   }
 
   /** Mark all messages in a conversation as read. */

@@ -5,6 +5,14 @@ import { AppError } from '../../common/errors/app-error';
 
 const DEFAULT_PAGE = 30;
 
+const STATUS_LABELS: Record<string, string> = {
+  NEW: 'جديد',
+  PREPARING: 'جاري التجهيز',
+  READY_TO_SHIP: 'جاهز للشحن',
+  SHIPPED: 'تم الشحن',
+  COMPLETED: 'مكتمل',
+};
+
 @Injectable()
 export class MessagesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -334,6 +342,32 @@ export class MessagesService {
 
   // ─── Serializers ───────────────────────────────────────────────────────────
 
+  async setOrderStatus(userId: string, organizationId: string, conversationId: string, orderStatus: string) {
+    await this.requireParticipant(conversationId, organizationId);
+
+    const label = STATUS_LABELS[orderStatus] ?? orderStatus;
+    const msgBody = `تم تحديث حالة الطلب إلى: ${label}`;
+    const msgId = randomUUID();
+    const now = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        UPDATE msg.conversations
+        SET order_status = ${orderStatus}, updated_at = ${now}::timestamptz
+        WHERE id = ${conversationId}::uuid
+      `;
+      await tx.$executeRaw`
+        INSERT INTO msg.messages (id, conversation_id, kind, sender_user_id, sender_org_id, body, created_at)
+        VALUES (${msgId}::uuid, ${conversationId}::uuid, 'SYSTEM'::core.message_kind, ${userId}::uuid, ${organizationId}::uuid, ${msgBody}, ${now}::timestamptz)
+      `;
+      await tx.$executeRaw`
+        UPDATE msg.conversations SET last_message_at = ${now}::timestamptz WHERE id = ${conversationId}::uuid
+      `;
+    });
+
+    return { id: conversationId, orderStatus };
+  }
+
   private serializeConversation(
     c: {
       id: string;
@@ -342,6 +376,7 @@ export class MessagesService {
       context_id: string | null;
       context_reference: string | null;
       title: string | null;
+      order_status: string | null;
       status: string;
       last_message_at: Date | null;
       conversation_participants: Array<{
@@ -372,6 +407,7 @@ export class MessagesService {
       contextId: c.context_id,
       contextReference: c.context_reference,
       title: c.title ?? c.context_reference ?? c.conversation_type,
+      orderStatus: c.order_status ?? 'NEW',
       status: c.status,
       lastMessageAt: c.last_message_at,
       counterPartyName: otherParty?.organizations?.display_name ?? null,

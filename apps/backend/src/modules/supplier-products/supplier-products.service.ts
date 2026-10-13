@@ -15,6 +15,21 @@ export interface CreateProductInput {
   imageFileIds?: string[];
 }
 
+export interface UpdateProductInput {
+  name?: string;
+  description?: string;
+  categorySlug?: 'packaging' | 'equipment' | 'building-materials' | 'other';
+  categoryOther?: string;
+  specsText?: string;
+  originText?: string;
+  packagingText?: string;
+  unitPriceHalalas?: number;
+  stockQty?: number;
+  moq?: number;
+  leadTimeDays?: number;
+  imageFileIds?: string[];
+}
+
 export interface PublishProductInput {
   unitPriceHalalas: number;
   vatTreatment: 'INCLUSIVE' | 'EXCLUSIVE';
@@ -162,6 +177,132 @@ export class SupplierProductsService {
       },
     });
     return { id: updated.id, status: updated.status };
+  }
+
+  async getOne(orgId: string, userId: string, productId: string) {
+    await this.requireMembership(orgId, userId);
+    const product = await this.prisma.products.findUnique({
+      where: { id: productId },
+      include: { product_images: { orderBy: { sort_order: 'asc' } } },
+    });
+    if (!product || product.supplier_org_id !== orgId || product.deleted_at) {
+      throw new AppError('NOT_FOUND', 'Product not found');
+    }
+    const specsArr = (product.specs as { key: string; value: string }[]) ?? [];
+    const category = await this.prisma.product_categories.findUnique({ where: { id: product.category_id } });
+    return {
+      id: product.id,
+      name: product.name,
+      description: product.description ?? '',
+      categorySlug: category?.slug ?? 'other',
+      categoryOther: specsArr.find((s) => s.key === 'categoryOther')?.value ?? '',
+      specsText: specsArr.find((s) => s.key === 'specs')?.value ?? '',
+      packagingText: specsArr.find((s) => s.key === 'packaging')?.value ?? '',
+      status: product.status,
+      unitPriceHalalas: Number(product.unit_price),
+      vatTreatment: product.vat_treatment ?? 'INCLUSIVE',
+      unitCode: product.unit_code,
+      stockQty: product.stock_qty,
+      moq: product.moq,
+      leadTimeDays: product.lead_time_days,
+      imageFileIds: product.product_images.map((i) => i.file_id),
+    };
+  }
+
+  async update(orgId: string, userId: string, productId: string, input: UpdateProductInput) {
+    await this.requireMembership(orgId, userId);
+    const product = await this.prisma.products.findUnique({
+      where: { id: productId },
+      include: { product_images: true },
+    });
+    if (!product || product.supplier_org_id !== orgId || product.deleted_at) {
+      throw new AppError('NOT_FOUND', 'Product not found');
+    }
+
+    let specsArr = (product.specs as { key: string; value: string }[]) ?? [];
+    if (input.specsText !== undefined) {
+      specsArr = specsArr.filter((s) => s.key !== 'specs');
+      if (input.specsText) specsArr.push({ key: 'specs', value: input.specsText });
+    }
+    if (input.packagingText !== undefined) {
+      specsArr = specsArr.filter((s) => s.key !== 'packaging');
+      if (input.packagingText) specsArr.push({ key: 'packaging', value: input.packagingText });
+    }
+    if (input.categoryOther !== undefined) {
+      specsArr = specsArr.filter((s) => s.key !== 'categoryOther');
+      if (input.categoryOther) specsArr.push({ key: 'categoryOther', value: input.categoryOther });
+    }
+
+    let categoryId = product.category_id;
+    if (input.categorySlug) {
+      const cat = await this.prisma.product_categories.findUnique({ where: { slug: input.categorySlug } });
+      if (cat) categoryId = cat.id;
+    }
+
+    const originCountryCode = input.originText ? await this.matchCountryCode(input.originText) : undefined;
+
+    await this.prisma.products.update({
+      where: { id: productId },
+      data: {
+        ...(input.name && { name: input.name }),
+        ...(input.description !== undefined && { description: input.description }),
+        category_id: categoryId,
+        specs: specsArr,
+        ...(originCountryCode && { origin_country_code: originCountryCode }),
+        ...(input.unitPriceHalalas !== undefined && { unit_price: BigInt(Math.round(input.unitPriceHalalas)) }),
+        ...(input.stockQty !== undefined && { stock_qty: input.stockQty }),
+        ...(input.moq !== undefined && { moq: input.moq }),
+        ...(input.leadTimeDays !== undefined && { lead_time_days: input.leadTimeDays }),
+      },
+    });
+
+    if (input.imageFileIds !== undefined) {
+      await this.prisma.product_images.deleteMany({ where: { product_id: productId } });
+      for (let i = 0; i < input.imageFileIds.length; i++) {
+        const file = await this.prisma.files.findFirst({
+          where: { id: input.imageFileIds[i], organization_id: orgId, purpose: 'PRODUCT_IMAGE' as never },
+        });
+        if (file) {
+          await this.prisma.product_images.create({
+            data: { id: randomUUID(), product_id: productId, file_id: file.id, is_cover: i === 0, sort_order: i },
+          });
+        }
+      }
+    }
+
+    return { id: productId };
+  }
+
+  async setStatus(orgId: string, userId: string, productId: string, status: 'PUBLISHED' | 'PAUSED' | 'REMOVED') {
+    await this.requireMembership(orgId, userId);
+    const product = await this.prisma.products.findUnique({ where: { id: productId } });
+    if (!product || product.supplier_org_id !== orgId) {
+      throw new AppError('NOT_FOUND', 'Product not found');
+    }
+    if (status === 'PUBLISHED' && !product.listing_consent_id) {
+      throw new AppError('BUSINESS_RULE_VIOLATION', 'Complete the publish flow to activate this product');
+    }
+    const updated = await this.prisma.products.update({
+      where: { id: productId },
+      data: {
+        status: status as never,
+        ...(status === 'REMOVED' && { deleted_at: new Date() }),
+      },
+    });
+    return { id: updated.id, status: updated.status };
+  }
+
+  async remove(orgId: string, userId: string, productId: string) {
+    await this.requireMembership(orgId, userId);
+    const product = await this.prisma.products.findUnique({ where: { id: productId } });
+    if (!product || product.supplier_org_id !== orgId) {
+      throw new AppError('NOT_FOUND', 'Product not found');
+    }
+    await this.prisma.products.update({
+      where: { id: productId },
+      data: { status: 'REMOVED' as never, deleted_at: new Date() },
+    });
+    return { success: true };
   }
 
   async list(orgId: string, userId: string, status?: string) {
