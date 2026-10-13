@@ -186,7 +186,7 @@ export class FilesService {
 
   private async readFile(file: { id: string; storage_key: string; mime_type: string; original_name: string | null }) {
     const absPath = this.resolveSafePath(file.storage_key);
-    const buffer = await readFile(absPath);
+    const buffer = await this.readStored(absPath);
     return {
       buffer,
       mimeType: file.mime_type,
@@ -310,7 +310,7 @@ export class FilesService {
       throw new AppError('NOT_FOUND', 'Avatar not found');
     }
     const absPath = this.resolveSafePath(file.storage_key);
-    const buffer = await readFile(absPath);
+    const buffer = await this.readStored(absPath);
     return { buffer, mimeType: file.mime_type };
   }
 
@@ -320,8 +320,20 @@ export class FilesService {
     const file = await this.prisma.files.findUnique({ where: { id: fileId } });
     if (!file || file.deleted_at) throw new AppError('NOT_FOUND', 'File not found');
     const absPath = this.resolveSafePath(file.storage_key);
-    const buffer = await readFile(absPath);
+    const buffer = await this.readStored(absPath);
     return { buffer, mimeType: file.mime_type, originalName: file.original_name ?? `${file.id}` };
+  }
+
+  /** A row can outlive its bytes (a wiped storage dir); that is "gone", not a server error. */
+  private async readStored(absPath: string): Promise<Buffer> {
+    try {
+      return await readFile(absPath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new AppError('NOT_FOUND', 'The file is no longer available');
+      }
+      throw err;
+    }
   }
 
   private resolveSafePath(storageKey: string): string {
