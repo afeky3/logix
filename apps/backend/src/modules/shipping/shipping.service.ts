@@ -112,6 +112,14 @@ export class ShippingService {
       where: { request_id: requestId },
       data,
     });
+    // The request lists everywhere else (my orders, provider opportunities) show
+    // the route from these two summaries, so keep them in step with the labels.
+    if (input.originLabel !== undefined || input.destinationLabel !== undefined) {
+      await this.prisma.service_requests.update({
+        where: { id: requestId },
+        data: { origin_summary: input.originLabel, destination_summary: input.destinationLabel },
+      });
+    }
     return this.get(requestId, userId);
   }
 

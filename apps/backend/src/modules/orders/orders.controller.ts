@@ -9,7 +9,19 @@ import { OrdersService } from './orders.service';
 const simulateSchema = z.object({ outcome: z.enum(['succeed', 'fail']) });
 const confirmReadinessSchema = z.object({ organizationId: z.string().uuid() });
 const ratingSchema = z.object({ stars: z.number().int().min(1).max(5), notes: z.string().max(1000).optional() });
-const cancelConfirmedSchema = z.object({ reasonCode: z.string().max(100).optional() });
+const receiptSchema = z.object({
+  recipientName: z.string().max(200).optional(),
+  notes: z.string().max(1000).optional(),
+});
+const cancelConfirmedSchema = z.object({
+  reasonCode: z.string().max(100).optional(),
+  note: z.string().max(1000).optional(),
+});
+const milestoneSchema = z.object({
+  organizationId: z.string().uuid(),
+  code: z.string().min(1).max(50),
+  note: z.string().max(500).optional(),
+});
 const feedQuery = z.object({
   organizationId: z.string().uuid(),
   role: z.enum(['customer', 'provider']),
@@ -80,9 +92,33 @@ export class OrdersController {
     return this.orders.confirmReadiness(user.sub, id, organizationId);
   }
 
+  @Get('orders/:id/progress')
+  progress(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.orders.getProgress(user.sub, id);
+  }
+
+  @Post('orders/:id/milestones')
+  milestone(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    const { organizationId, code, note } = parseBody(milestoneSchema, body);
+    return this.orders.recordMilestone(user.sub, id, organizationId, code, note);
+  }
+
+  @Get('orders/:id/invoice')
+  invoice(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.orders.getInvoice(user.sub, id);
+  }
+
   @Post('orders/:id/receipt')
-  receipt(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
-    return this.orders.receiptOrder(user.sub, id);
+  receipt(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    return this.orders.receiptOrder(user.sub, id, parseBody(receiptSchema, body ?? {}));
   }
 
   @Post('orders/:id/rating')
@@ -95,13 +131,17 @@ export class OrdersController {
     return this.orders.rateOrder(user.sub, id, stars, notes);
   }
 
+  @Get('orders/:id/cancellation-preview')
+  cancellationPreview(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.orders.cancellationPreview(user.sub, id);
+  }
+
   @Post('orders/:id/cancel')
   cancelConfirmed(
     @Param('id') id: string,
     @Body() body: unknown,
     @CurrentUser() user: AppTokenPayload,
   ) {
-    const { reasonCode } = parseBody(cancelConfirmedSchema, body);
-    return this.orders.cancelOrder(user.sub, id, reasonCode);
+    return this.orders.cancelOrder(user.sub, id, parseBody(cancelConfirmedSchema, body ?? {}));
   }
 }

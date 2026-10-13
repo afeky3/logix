@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { OrderProgressService } from '../orders/order-progress.service';
 
 const ACTIVE_ORDER_STATUSES = ['CONFIRMED', 'SCHEDULED', 'IN_PROGRESS', 'ACTIVE'];
 
@@ -18,7 +19,10 @@ type TripEventType =
  * and trip execution (transport.trip_assignments / trip_events). */
 @Injectable()
 export class ProviderOpsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly progress: OrderProgressService,
+  ) {}
 
   private async requireMembership(orgId: string, userId: string) {
     const membership = await this.prisma.memberships.findUnique({
@@ -323,6 +327,7 @@ export class ProviderOpsService {
         note: input.note,
       },
     });
+    await this.progress.noteTripEvent(userId, orderId, e.event_type, e.occurred_at);
     return { id: e.id, type: e.event_type, occurredAt: e.occurred_at };
   }
 }

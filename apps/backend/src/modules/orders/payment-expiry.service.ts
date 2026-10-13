@@ -21,24 +21,41 @@ export class PaymentExpiryService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   async sweep(): Promise<void> {
     const now = new Date();
+    // A FAILED intent counts too: the customer may never retry, and the
+    // order would otherwise hold the request hostage forever.
     const stale = await this.prisma.payment_intents.findMany({
-      where: { status: { in: ['INITIATED', 'PENDING'] }, expires_at: { lt: now } },
-      select: { id: true, order_id: true },
+      where: {
+        expires_at: { lt: now },
+        OR: [
+          { status: { in: ['INITIATED', 'PENDING'] } },
+          { status: 'FAILED', orders: { status: 'PENDING_PAYMENT' } },
+        ],
+      },
+      select: { id: true, order_id: true, status: true },
     });
     if (stale.length === 0) return;
 
     for (const intent of stale) {
-      await this.expireOne(intent.id, intent.order_id);
+      await this.expireOne(intent.id, intent.order_id, intent.status === 'FAILED');
     }
     this.logger.log(`Expired ${stale.length} unpaid payment intent(s) past their 30-minute hold`);
   }
 
-  private async expireOne(intentId: string, orderId: string | null): Promise<void> {
-    await this.prisma.payment_intents.update({
-      where: { id: intentId },
-      data: { status: 'EXPIRED', failure_code: 'payment_hold_expired' },
-    });
+  private async expireOne(intentId: string, orderId: string | null, alreadyFailed: boolean): Promise<void> {
+    if (!alreadyFailed) {
+      await this.prisma.payment_intents.update({
+        where: { id: intentId },
+        data: { status: 'EXPIRED', failure_code: 'payment_hold_expired' },
+      });
+    }
     if (!orderId) return; // only ORDER payables exist so far
+    if (alreadyFailed) {
+      // The customer retried: a newer live intent still owns the order.
+      const live = await this.prisma.payment_intents.count({
+        where: { order_id: orderId, status: { in: ['INITIATED', 'PENDING'] } },
+      });
+      if (live > 0) return;
+    }
 
     const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
     if (!order || order.status !== 'PENDING_PAYMENT') return; // already settled/handled

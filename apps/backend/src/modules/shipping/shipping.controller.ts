@@ -21,7 +21,7 @@ const detailsSchema = z.object({
   borderCrossingOther: z.string().max(120).optional(),
   piecesCount: z.number().int().positive().optional(),
   weightKg: z.number().positive().optional(),
-  hsCode: z.string().max(20).optional(),
+  hsCode: z.string().regex(/^[0-9]{6,12}$/, 'HS code must be 6 to 12 digits').optional(),
   goodsDescription: z.string().max(1000).optional(),
   dimensionsCm: z.string().max(100).optional(),
   volumeCbm: z.number().positive().optional(),
