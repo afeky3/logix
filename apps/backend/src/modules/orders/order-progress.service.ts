@@ -10,6 +10,17 @@ const TRANSPORT_STEPS = [
   { code: 'DELIVERED', event: 'ARRIVED_AT_DROPOFF' },
 ] as const;
 
+/** Events split into trips at each drop-off; the last trip, or the one before it if a new one has not started. */
+function currentTrip<T extends { event_type: string }>(events: T[]): T[] {
+  const trips: T[][] = [[]];
+  for (const e of events) {
+    trips[trips.length - 1].push(e);
+    if (e.event_type === 'ARRIVED_AT_DROPOFF') trips.push([]);
+  }
+  const last = trips[trips.length - 1];
+  return last.length > 0 ? last : (trips[trips.length - 2] ?? []);
+}
+
 /** Every other service type walks a fixed list of milestones, in order. */
 export const MILESTONE_STEPS: Record<string, string[]> = {
   SHIPPING: ['PREPARING', 'SHIPPED', 'IN_TRANSIT', 'ARRIVED', 'DELIVERED'],
@@ -18,6 +29,9 @@ export const MILESTONE_STEPS: Record<string, string[]> = {
 };
 
 const RECORDABLE_STATUSES = ['CONFIRMED', 'SCHEDULED', 'IN_PROGRESS', 'ACTIVE'];
+
+/** Steps that cannot be recorded without the paperwork behind them (bill of lading, etc.). */
+const DOCUMENT_REQUIRED_STEPS: Record<string, string[]> = { SHIPPING: ['SHIPPED'] };
 
 export interface ProgressStep {
   code: string;
@@ -52,8 +66,10 @@ export class OrderProgressService {
         orderBy: { occurred_at: 'asc' },
         select: { event_type: true, occurred_at: true },
       });
+      // A recurring contract makes many trips: show the one in progress (or the last one finished).
+      const trip = currentTrip(events);
       const at = new Map<string, Date>();
-      for (const e of events) if (!at.has(e.event_type)) at.set(e.event_type, e.occurred_at);
+      for (const e of trip) if (!at.has(e.event_type)) at.set(e.event_type, e.occurred_at);
       const steps = TRANSPORT_STEPS.map((s) => ({
         code: s.code as string,
         done: at.has(s.event),
@@ -120,6 +136,7 @@ export class OrderProgressService {
     organizationId: string,
     code: string,
     note?: string,
+    fileIds: string[] = [],
   ): Promise<OrderProgress> {
     const membership = await this.prisma.memberships.findUnique({
       where: { user_id_organization_id: { user_id: userId, organization_id: organizationId } },
@@ -143,6 +160,12 @@ export class OrderProgressService {
 
     const progress = await this.get(orderId, order.service_type);
     if (progress.doneCodes.has(code)) return progress;
+    if ((DOCUMENT_REQUIRED_STEPS[order.service_type] ?? []).includes(code) && fileIds.length === 0) {
+      throw new AppError('VALIDATION_FAILED', 'Attach the shipping documents before recording this step', {
+        details: [{ field: 'fileIds', code: 'required' }],
+      });
+    }
+    await this.assertShipmentDocuments(fileIds, organizationId);
     const next = codes.find((c) => !progress.doneCodes.has(c));
     if (next !== code) {
       throw new AppError('BUSINESS_RULE_VIOLATION', `Record ${next} before ${code}`);
@@ -162,8 +185,16 @@ export class OrderProgressService {
           source: 'PROVIDER',
           recorded_by_user_id: userId,
           note: note ?? null,
+          evidence_file_ids: fileIds,
         },
-        update: { status: 'DONE', occurred_at: now, source: 'PROVIDER', recorded_by_user_id: userId, note: note ?? null },
+        update: {
+          status: 'DONE',
+          occurred_at: now,
+          source: 'PROVIDER',
+          recorded_by_user_id: userId,
+          note: note ?? null,
+          evidence_file_ids: fileIds,
+        },
       }),
       this.prisma.order_events.create({
         data: {
@@ -173,7 +204,7 @@ export class OrderProgressService {
           from_status: order.status,
           to_status: order.status === 'IN_PROGRESS' || order.status === 'ACTIVE' ? order.status : 'IN_PROGRESS',
           milestone_code: code,
-          payload: note ? { note } : {},
+          payload: { ...(note ? { note } : {}), ...(fileIds.length ? { documents: fileIds.length } : {}) },
           source: 'PROVIDER',
           actor_user_id: userId,
           occurred_at: now,
@@ -191,6 +222,94 @@ export class OrderProgressService {
       }),
     ]);
     return this.get(orderId, order.service_type);
+  }
+
+  /** Every file must be a shipment document that belongs to the provider organization. */
+  private async assertShipmentDocuments(fileIds: string[], providerOrgId: string): Promise<void> {
+    if (fileIds.length === 0) return;
+    const unique = [...new Set(fileIds)];
+    const files = await this.prisma.files.findMany({
+      where: { id: { in: unique }, deleted_at: null },
+      select: { id: true, purpose: true, organization_id: true },
+    });
+    const ok =
+      files.length === unique.length &&
+      files.every((f) => f.purpose === 'SHIPMENT_DOCUMENT' && f.organization_id === providerOrgId);
+    if (!ok) {
+      throw new AppError('VALIDATION_FAILED', 'Documents must be uploaded as shipment documents by the provider', {
+        details: [{ field: 'fileIds', code: 'invalid' }],
+      });
+    }
+  }
+
+  /** Adds paperwork to the step the order is currently on (transport: the latest trip event). */
+  async attachDocuments(userId: string, orderId: string, organizationId: string, fileIds: string[]): Promise<void> {
+    const membership = await this.prisma.memberships.findUnique({
+      where: { user_id_organization_id: { user_id: userId, organization_id: organizationId } },
+    });
+    if (!membership || membership.status !== 'ACTIVE') {
+      throw new AppError('FORBIDDEN', 'Not a member of this organization');
+    }
+    const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError('NOT_FOUND', 'Order not found');
+    if (order.provider_org_id !== organizationId) throw new AppError('FORBIDDEN', 'Not the provider on this order');
+    if (!RECORDABLE_STATUSES.includes(order.status)) {
+      throw new AppError('INVALID_STATE_TRANSITION', 'Order is not open for documents');
+    }
+    await this.assertShipmentDocuments(fileIds, organizationId);
+    const unique = [...new Set(fileIds)];
+
+    if (order.service_type === 'TRANSPORT') {
+      const last = await this.prisma.trip_events.findFirst({
+        where: { order_id: orderId },
+        orderBy: { occurred_at: 'desc' },
+      });
+      if (!last) throw new AppError('BUSINESS_RULE_VIOLATION', 'Record a trip step before attaching documents');
+      await this.prisma.trip_events.update({
+        where: { id: last.id },
+        data: { document_file_ids: [...new Set([...last.document_file_ids, ...unique])] },
+      });
+      return;
+    }
+    const last = await this.prisma.order_milestones.findFirst({
+      where: { order_id: orderId, status: 'DONE' },
+      orderBy: { sequence: 'desc' },
+    });
+    if (!last) throw new AppError('BUSINESS_RULE_VIOLATION', 'Record a step before attaching documents');
+    await this.prisma.order_milestones.update({
+      where: { id: last.id },
+      data: { evidence_file_ids: [...new Set([...last.evidence_file_ids, ...unique])] },
+    });
+  }
+
+  /** Shipment documents attached to any step of the order, newest first. */
+  async listDocuments(orderId: string) {
+    const [milestones, events] = await Promise.all([
+      this.prisma.order_milestones.findMany({
+        where: { order_id: orderId, status: 'DONE' },
+        select: { code: true, evidence_file_ids: true },
+      }),
+      this.prisma.trip_events.findMany({
+        where: { order_id: orderId },
+        select: { event_type: true, document_file_ids: true },
+      }),
+    ]);
+    const stepOf = new Map<string, string>();
+    for (const m of milestones) m.evidence_file_ids.forEach((f) => stepOf.set(f, m.code));
+    for (const e of events) e.document_file_ids.forEach((f) => stepOf.set(f, e.event_type));
+    if (stepOf.size === 0) return [];
+    const files = await this.prisma.files.findMany({
+      where: { id: { in: [...stepOf.keys()] }, deleted_at: null },
+      orderBy: { created_at: 'desc' },
+    });
+    return files.map((f) => ({
+      fileId: f.id,
+      name: f.original_name ?? f.id,
+      mimeType: f.mime_type,
+      sizeBytes: Number(f.size_bytes),
+      uploadedAt: f.created_at,
+      stepCode: stepOf.get(f.id) ?? null,
+    }));
   }
 
   /** Called when the driver records a trip event so the order itself reflects it. */

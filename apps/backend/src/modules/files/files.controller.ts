@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
@@ -81,6 +81,11 @@ export class FilesController {
     return this.files.uploadOrgLogo({ userId: user.sub, organizationId, purpose: 'AVATAR', filename: data.filename, mimeType: data.mimetype, buffer });
   }
 
+  @Post(':id/link')
+  link(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.files.createDownloadLink(id, user.sub);
+  }
+
   @Get(':id')
   async download(
     @Param('id') id: string,
@@ -109,6 +114,25 @@ export class PublicAvatarController {
     const { buffer, mimeType } = await this.files.downloadAvatar(id);
     res.header('Content-Type', mimeType);
     res.header('Cache-Control', 'public, max-age=86400, immutable');
+    return buffer;
+  }
+}
+
+/** Opened from a short-lived link made by POST /files/:id/link — no JWT header (it's a browser navigation). */
+@Controller('files/:id/content')
+export class LinkedFileController {
+  constructor(private readonly files: FilesService) {}
+
+  @Get()
+  async content(
+    @Param('id') id: string,
+    @Query('t') token: string | undefined,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    const { buffer, mimeType, originalName } = await this.files.downloadWithToken(id, token);
+    res.header('Content-Type', mimeType);
+    res.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(originalName)}`);
+    res.header('Cache-Control', 'private, no-store');
     return buffer;
   }
 }

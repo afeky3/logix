@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+
+type OrderRow = Prisma.ordersGetPayload<Record<string, never>>;
 
 /**
  * The tax invoice the provider issues to the customer through the platform
  * (client workflow: "the customer receives a payment receipt and an official
- * tax invoice"). Issued the moment the order is paid; GET /orders/:id/invoice
- * also issues it lazily for orders that were paid before this existed.
+ * tax invoice"). Issued the moment the order is paid — and again for every
+ * paid cycle of a recurring contract; GET /orders/:id/invoice also issues it
+ * lazily for orders that were paid before this existed.
  * ZATCA clearance isn't wired — rows start PENDING for the worker that will do it.
  */
 @Injectable()
@@ -17,24 +21,74 @@ export class InvoicesService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Never throws: an invoice problem must not undo a payment that already succeeded. */
-  async issueForOrderSafely(orderId: string): Promise<void> {
+  async issueForOrderSafely(orderId: string): Promise<string | null> {
     try {
-      await this.issueForOrder(orderId);
+      return await this.issueForOrder(orderId);
     } catch (err) {
       this.logger.error(`Invoice issuing failed for order ${orderId}`, err instanceof Error ? err.stack : String(err));
+      return null;
     }
   }
 
-  async issueForOrder(orderId: string): Promise<string> {
-    const existing = await this.prisma.invoices.findFirst({
-      where: { order_id: orderId, invoice_type: 'SERVICE_INVOICE' },
-      select: { id: true },
-    });
-    if (existing) return existing.id;
+  async issueForCycleSafely(cycleId: string): Promise<string | null> {
+    try {
+      return await this.issueForCycle(cycleId);
+    } catch (err) {
+      this.logger.error(`Invoice issuing failed for cycle ${cycleId}`, err instanceof Error ? err.stack : String(err));
+      return null;
+    }
+  }
 
+  /** The order's first invoice. */
+  async issueForOrder(orderId: string): Promise<string> {
     const order = await this.prisma.orders.findUniqueOrThrow({ where: { id: orderId } });
     if (order.payment_status !== 'PAID') throw new AppError('BUSINESS_RULE_VIOLATION', 'Order is not paid');
+    return this.createInvoice(order, {
+      lockKey: `invoice:${orderId}`,
+      issuedAt: order.confirmed_at ?? new Date(),
+      suffix: '',
+      alreadyIssued: async (tx) =>
+        (
+          await tx.invoices.findFirst({
+            where: { order_id: orderId, invoice_type: 'SERVICE_INVOICE' },
+            orderBy: { issue_at: 'asc' },
+            select: { id: true },
+          })
+        )?.id ?? null,
+    });
+  }
 
+  /** One invoice per paid billing cycle of a recurring contract. */
+  async issueForCycle(cycleId: string): Promise<string> {
+    const cycle = await this.prisma.contract_cycles.findUniqueOrThrow({
+      where: { id: cycleId },
+      include: { recurring_contracts: true },
+    });
+    if (cycle.status !== 'PAID') throw new AppError('BUSINESS_RULE_VIOLATION', 'This cycle is not paid');
+    if (cycle.invoice_id) return cycle.invoice_id;
+    const order = await this.prisma.orders.findUniqueOrThrow({ where: { id: cycle.recurring_contracts.order_id } });
+    const id = await this.createInvoice(order, {
+      lockKey: `invoice-cycle:${cycleId}`,
+      issuedAt: cycle.paid_at ?? new Date(),
+      suffix: ` · cycle ${cycle.cycle_no}`,
+      alreadyIssued: async (tx) =>
+        (await tx.contract_cycles.findUnique({ where: { id: cycleId }, select: { invoice_id: true } }))?.invoice_id ?? null,
+    });
+    await this.prisma.$executeRaw`
+      UPDATE svc.contract_cycles SET invoice_id = ${id}::uuid WHERE id = ${cycleId}::uuid AND invoice_id IS NULL
+    `;
+    return id;
+  }
+
+  private async createInvoice(
+    order: OrderRow,
+    opts: {
+      lockKey: string;
+      issuedAt: Date;
+      suffix: string;
+      alreadyIssued: (tx: Prisma.TransactionClient) => Promise<string | null>;
+    },
+  ): Promise<string> {
     const [customerOrg, providerProfile, customerProfile] = await Promise.all([
       this.prisma.organizations.findUniqueOrThrow({ where: { id: order.customer_org_id }, select: { display_name: true } }),
       this.prisma.business_profiles.findUnique({ where: { organization_id: order.provider_org_id } }),
@@ -42,8 +96,7 @@ export class InvoicesService {
     ]);
 
     const invoiceId = randomUUID();
-    const issuedAt = order.confirmed_at ?? new Date();
-    const year = issuedAt.getUTCFullYear();
+    const year = opts.issuedAt.getUTCFullYear();
 
     const serviceFee = Number(order.service_fee);
     const charges = Number(order.charges_total);
@@ -52,19 +105,20 @@ export class InvoicesService {
     const rate = order.vat_rate_bps;
     const chargesVat = Math.round((charges * rate) / 10000);
     const lines = [
-      { description: 'Service fee', amount: serviceFee, vat: totalVat - chargesVat, passThrough: false },
-      ...(charges > 0 ? [{ description: 'Additional charges', amount: charges, vat: chargesVat, passThrough: false }] : []),
-      ...(passThrough > 0 ? [{ description: 'Pass-through costs', amount: passThrough, vat: 0, passThrough: true }] : []),
+      { description: `Service fee${opts.suffix}`, amount: serviceFee, vat: totalVat - chargesVat, passThrough: false },
+      ...(charges > 0
+        ? [{ description: `Additional charges${opts.suffix}`, amount: charges, vat: chargesVat, passThrough: false }]
+        : []),
+      ...(passThrough > 0
+        ? [{ description: `Pass-through costs${opts.suffix}`, amount: passThrough, vat: 0, passThrough: true }]
+        : []),
     ];
 
     // The advisory lock makes a concurrent payment-time and lazy issue produce one invoice.
     return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'invoice:' + orderId}))`;
-      const again = await tx.invoices.findFirst({
-        where: { order_id: orderId, invoice_type: 'SERVICE_INVOICE' },
-        select: { id: true },
-      });
-      if (again) return again.id;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${opts.lockKey}))`;
+      const again = await opts.alreadyIssued(tx);
+      if (again) return again;
 
       const rows = await tx.$queryRaw<{ last_number: number }[]>`
         INSERT INTO fin.invoice_sequences (issuer_key, year, last_number)
@@ -83,8 +137,8 @@ export class InvoicesService {
           ${invoiceId}::uuid, ${number}, 'SERVICE_INVOICE'::core.invoice_type, 'ORGANIZATION',
           ${order.provider_org_id}::uuid, ${providerProfile?.vat_number ?? null},
           ${order.customer_org_id}::uuid, ${customerProfile?.legal_name ?? customerOrg.display_name},
-          ${customerProfile?.vat_number ?? null}, ${orderId}::uuid,
-          ${issuedAt}::timestamptz, ${order.currency}::core.currency_code,
+          ${customerProfile?.vat_number ?? null}, ${order.id}::uuid,
+          ${opts.issuedAt}::timestamptz, ${order.currency}::core.currency_code,
           ${order.subtotal}::core.halalas, ${order.vat_amount}::core.halalas, ${order.total_amount}::core.halalas
         )
       `;
@@ -104,7 +158,8 @@ export class InvoicesService {
     });
   }
 
-  async getForOrder(userId: string, orderId: string) {
+  /** The order's invoice, or — for a recurring contract — the invoice of one cycle. */
+  async getForOrder(userId: string, orderId: string, cycleId?: string) {
     const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
     if (!order) throw new AppError('NOT_FOUND', 'Order not found');
     const membership = await this.prisma.memberships.findFirst({
@@ -119,7 +174,17 @@ export class InvoicesService {
       throw new AppError('BUSINESS_RULE_VIOLATION', 'An invoice is issued once the order is paid');
     }
 
-    const invoiceId = await this.issueForOrder(orderId);
+    let invoiceId: string;
+    if (cycleId) {
+      const cycle = await this.prisma.contract_cycles.findUnique({
+        where: { id: cycleId },
+        include: { recurring_contracts: true },
+      });
+      if (!cycle || cycle.recurring_contracts.order_id !== orderId) throw new AppError('NOT_FOUND', 'Cycle not found');
+      invoiceId = await this.issueForCycle(cycleId);
+    } else {
+      invoiceId = await this.issueForOrder(orderId);
+    }
     const invoice = await this.prisma.invoices.findUniqueOrThrow({
       where: { id: invoiceId },
       include: { invoice_lines: { orderBy: { line_no: 'asc' } } },

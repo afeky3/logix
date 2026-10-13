@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
+import { ContractsService, type ContractSummary } from './contracts.service';
 import { InvoicesService } from './invoices.service';
 import { OrderProgressService } from './order-progress.service';
 import { cancellationQuote, cancellationTier } from './cancellation-policy';
@@ -14,6 +15,7 @@ interface OrderFlags {
   receiptConfirmed: boolean;
   rated: boolean;
   finalReached: boolean;
+  contract: ContractSummary | null;
 }
 
 /**
@@ -53,6 +55,7 @@ export class OrdersService {
     private readonly refs: ReferenceGenerator,
     private readonly progress: OrderProgressService,
     private readonly invoices: InvoicesService,
+    private readonly contracts: ContractsService,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -225,7 +228,11 @@ export class OrdersService {
    * server-to-server `retrievePayment` confirms success. */
   private async _settlePayment(intentId: string): Promise<void> {
     const intent = await this.prisma.payment_intents.findUniqueOrThrow({ where: { id: intentId } });
-    if (!intent.order_id) return; // only ORDER payables exist so far
+    if (intent.contract_cycle_id) {
+      await this.contracts.settleCyclePayment(intentId);
+      return;
+    }
+    if (!intent.order_id) return;
 
     const order = await this.prisma.orders.findUniqueOrThrow({ where: { id: intent.order_id } });
     const now = new Date();
@@ -255,7 +262,8 @@ export class OrdersService {
       data: { status: 'NOT_SELECTED' },
     });
 
-    await this.invoices.issueForOrderSafely(order.id);
+    const invoiceId = await this.invoices.issueForOrderSafely(order.id);
+    await this.contracts.createForPaidOrder(order.id, invoiceId);
   }
 
   async confirmReadiness(userId: string, orderId: string, organizationId: string) {
@@ -292,9 +300,19 @@ export class OrdersService {
     if (!['SCHEDULED', 'IN_PROGRESS', 'ACTIVE'].includes(order.status)) {
       throw new AppError('INVALID_STATE_TRANSITION', 'Order is not in progress');
     }
-    const progress = await this.progress.get(orderId, order.service_type);
-    if (!progress.finalReached) {
-      throw new AppError('BUSINESS_RULE_VIOLATION', 'Record the final delivery step before completing the order');
+    const contract = await this.prisma.recurring_contracts.findUnique({
+      where: { order_id: orderId },
+      select: { status: true },
+    });
+    if (contract) {
+      if (contract.status !== 'ENDED') {
+        throw new AppError('BUSINESS_RULE_VIOLATION', 'A recurring contract can be completed once its term is over');
+      }
+    } else {
+      const progress = await this.progress.get(orderId, order.service_type);
+      if (!progress.finalReached) {
+        throw new AppError('BUSINESS_RULE_VIOLATION', 'Record the final delivery step before completing the order');
+      }
     }
 
     // fin.settlements requires STL- followed by 7+ digits; the generator gives 6, so pad one zero.
@@ -309,11 +327,12 @@ export class OrdersService {
       this.prisma.$executeRaw`
         UPDATE svc.orders
         SET status = 'COMPLETED'::core.order_status, completed_at = ${now}::timestamptz,
-            auto_accept_at = ${autoReceiptAt}::timestamptz, last_update_at = ${now}::timestamptz,
-            settlement_status = 'ON_HOLD'::core.settlement_status
+            auto_accept_at = ${contract ? null : autoReceiptAt}::timestamptz, last_update_at = ${now}::timestamptz,
+            settlement_status = ${contract ? null : 'ON_HOLD'}::core.settlement_status
         WHERE id = ${orderId}::uuid
       `,
-      this.prisma.$executeRaw`
+      // A contract is settled month by month (contracts.service.ts), not once at the end.
+      ...(contract ? [] : [this.prisma.$executeRaw`
         INSERT INTO fin.settlements (
           id, reference, beneficiary_org_id, beneficiary_role, order_id, commission_rule_id,
           gross_amount, commission_rate_bps, commission_amount, commission_vat_amount, net_amount,
@@ -327,7 +346,7 @@ export class OrdersService {
           ${autoReceiptAt}::timestamptz, ${provisionalPayableOn}::date, 'ON_HOLD'::core.settlement_status,
           'AWAITING_RECEIPT', ${now}::timestamptz, 1, now(), now()
         )
-      `,
+      `]),
       this.prisma.order_events.create({
         data: {
           id: randomUUID(),
@@ -403,14 +422,52 @@ export class OrdersService {
     return this.serializeProgress(await this.progress.get(orderId, order.service_type), order.status);
   }
 
-  async recordMilestone(userId: string, orderId: string, organizationId: string, code: string, note?: string) {
-    const progress = await this.progress.recordMilestone(userId, orderId, organizationId, code, note);
+  async attachDocuments(userId: string, orderId: string, organizationId: string, fileIds: string[]) {
+    await this.progress.attachDocuments(userId, orderId, organizationId, fileIds);
+    return this.listDocuments(userId, orderId);
+  }
+
+  async listDocuments(userId: string, orderId: string) {
+    const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError('NOT_FOUND', 'Order not found');
+    const membership = await this.prisma.memberships.findFirst({
+      where: {
+        user_id: userId,
+        organization_id: { in: [order.customer_org_id, order.provider_org_id] },
+        status: 'ACTIVE',
+      },
+    });
+    if (!membership) throw new AppError('FORBIDDEN', 'Not a party to this order');
+    return this.progress.listDocuments(orderId);
+  }
+
+  async recordMilestone(
+    userId: string,
+    orderId: string,
+    organizationId: string,
+    code: string,
+    note?: string,
+    fileIds: string[] = [],
+  ) {
+    const progress = await this.progress.recordMilestone(userId, orderId, organizationId, code, note, fileIds);
     const order = await this.prisma.orders.findUniqueOrThrow({ where: { id: orderId } });
     return this.serializeProgress(progress, order.status);
   }
 
-  getInvoice(userId: string, orderId: string) {
-    return this.invoices.getForOrder(userId, orderId);
+  getInvoice(userId: string, orderId: string, cycleId?: string) {
+    return this.invoices.getForOrder(userId, orderId, cycleId);
+  }
+
+  getContract(userId: string, orderId: string) {
+    return this.contracts.get(userId, orderId);
+  }
+
+  payContractCycle(userId: string, orderId: string, cycleId: string) {
+    return this.contracts.payCycle(userId, orderId, cycleId);
+  }
+
+  endContract(userId: string, orderId: string) {
+    return this.contracts.end(userId, orderId);
   }
 
   private serializeProgress(p: Awaited<ReturnType<OrderProgressService['get']>>, orderStatus: string) {
@@ -428,31 +485,47 @@ export class OrdersService {
   private async loadFlags(orders: { id: string; service_type: string }[]): Promise<Map<string, OrderFlags>> {
     const ids = orders.map((o) => o.id);
     if (ids.length === 0) return new Map();
-    const [receipts, ratings, finals] = await Promise.all([
+    const [receipts, ratings, finals, contractOf] = await Promise.all([
       this.prisma.receipt_confirmations.findMany({ where: { order_id: { in: ids } }, select: { order_id: true } }),
       this.prisma.ratings.findMany({ where: { order_id: { in: ids } }, select: { order_id: true } }),
       this.progress.finalReachedIds(orders),
+      this.contracts.summaries(ids),
     ]);
     const receiptIds = new Set(receipts.map((r) => r.order_id));
     const ratedIds = new Set(ratings.map((r) => r.order_id));
     return new Map(
       ids.map((id) => [
         id,
-        { receiptConfirmed: receiptIds.has(id), rated: ratedIds.has(id), finalReached: finals.has(id) },
+        {
+          receiptConfirmed: receiptIds.has(id),
+          rated: ratedIds.has(id),
+          contract: contractOf.get(id) ?? null,
+          // A contract is finished when its term is, not when one trip is.
+          finalReached: contractOf.has(id) ? contractOf.get(id)!.status === 'ENDED' : finals.has(id),
+        },
       ]),
     );
   }
 
   private allowedActions(status: string, role: 'customer' | 'provider', flags: OrderFlags): string[] {
+    const c = flags.contract;
+    const active = ['SCHEDULED', 'IN_PROGRESS', 'ACTIVE'].includes(status);
     if (role === 'provider') {
-      if (status === 'CONFIRMED') return ['confirm_readiness', 'update_progress'];
-      if (['SCHEDULED', 'IN_PROGRESS', 'ACTIVE'].includes(status)) {
-        return flags.finalReached ? ['update_progress', 'complete_order'] : ['update_progress'];
-      }
+      // A suspended contract (unpaid month) pauses the service.
+      const progress = c?.status === 'SUSPENDED' ? [] : ['update_progress'];
+      if (status === 'CONFIRMED') return ['confirm_readiness', ...progress];
+      if (active) return flags.finalReached ? [...progress, 'complete_order'] : progress;
       return [];
     }
     if (status === 'PENDING_PAYMENT') return ['pay'];
-    if (['CONFIRMED', 'SCHEDULED', 'IN_PROGRESS', 'ACTIVE'].includes(status)) return ['cancel'];
+    if (status === 'CONFIRMED' || active) {
+      const actions: string[] = [];
+      if (c?.dueCycleId) actions.push('pay_cycle');
+      if (c && c.termMonths == null && ['ACTIVE', 'SUSPENDED'].includes(c.status) && !c.overdue) actions.push('end_contract');
+      // Once a contract is running, stopping it is "end contract", not a fee-based cancellation.
+      if (!c || status === 'CONFIRMED' || status === 'SCHEDULED') actions.push('cancel');
+      return actions;
+    }
     if (status === 'COMPLETED') {
       if (!flags.receiptConfirmed) return ['confirm_receipt'];
       if (!flags.rated) return ['rate'];
@@ -497,6 +570,8 @@ export class OrdersService {
       currentMilestone: o.current_milestone_code,
       receiptConfirmed: flags.receiptConfirmed,
       rated: flags.rated,
+      isContract: flags.contract != null,
+      contract: flags.contract,
       latestPaymentIntentId: o.payment_intents[0]?.id ?? null,
       allowedActions: this.allowedActions(o.status, role, flags),
       originSummary: req?.origin_summary ?? null,
@@ -703,6 +778,8 @@ export class OrdersService {
       currentMilestone: o.current_milestone_code,
       receiptConfirmed: flags.receiptConfirmed,
       rated: flags.rated,
+      isContract: flags.contract != null,
+      contract: flags.contract,
       allowedActions: this.allowedActions(o.status, role, flags),
     };
   }

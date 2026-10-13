@@ -21,6 +21,11 @@ const milestoneSchema = z.object({
   organizationId: z.string().uuid(),
   code: z.string().min(1).max(50),
   note: z.string().max(500).optional(),
+  fileIds: z.array(z.string().uuid()).max(10).optional(),
+});
+const documentsSchema = z.object({
+  organizationId: z.string().uuid(),
+  fileIds: z.array(z.string().uuid()).min(1).max(10),
 });
 const feedQuery = z.object({
   organizationId: z.string().uuid(),
@@ -103,13 +108,51 @@ export class OrdersController {
     @Body() body: unknown,
     @CurrentUser() user: AppTokenPayload,
   ) {
-    const { organizationId, code, note } = parseBody(milestoneSchema, body);
-    return this.orders.recordMilestone(user.sub, id, organizationId, code, note);
+    const { organizationId, code, note, fileIds } = parseBody(milestoneSchema, body);
+    return this.orders.recordMilestone(user.sub, id, organizationId, code, note, fileIds);
+  }
+
+  @Get('orders/:id/documents')
+  documents(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.orders.listDocuments(user.sub, id);
+  }
+
+  @Post('orders/:id/documents')
+  attachDocuments(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    const { organizationId, fileIds } = parseBody(documentsSchema, body);
+    return this.orders.attachDocuments(user.sub, id, organizationId, fileIds);
   }
 
   @Get('orders/:id/invoice')
-  invoice(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
-    return this.orders.getInvoice(user.sub, id);
+  invoice(
+    @Param('id') id: string,
+    @Query('cycleId') cycleId: string | undefined,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    return this.orders.getInvoice(user.sub, id, cycleId);
+  }
+
+  @Get('orders/:id/contract')
+  contract(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.orders.getContract(user.sub, id);
+  }
+
+  @Post('orders/:id/contract/cycles/:cycleId/pay')
+  payContractCycle(
+    @Param('id') id: string,
+    @Param('cycleId') cycleId: string,
+    @CurrentUser() user: AppTokenPayload,
+  ) {
+    return this.orders.payContractCycle(user.sub, id, cycleId);
+  }
+
+  @Post('orders/:id/contract/end')
+  endContract(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.orders.endContract(user.sub, id);
   }
 
   @Post('orders/:id/receipt')

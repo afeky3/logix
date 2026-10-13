@@ -291,6 +291,17 @@ export class ProviderOpsService {
     return conv.id;
   }
 
+  /** A recurring contract with an unpaid month is suspended: no trips until it is paid. */
+  private async assertContractNotSuspended(orderId: string): Promise<void> {
+    const suspended = await this.prisma.recurring_contracts.findFirst({
+      where: { order_id: orderId, status: 'SUSPENDED' },
+      select: { id: true },
+    });
+    if (suspended) {
+      throw new AppError('BUSINESS_RULE_VIOLATION', 'This contract is suspended until the customer pays the amount due');
+    }
+  }
+
   async recordEvent(
     userId: string,
     orderId: string,
@@ -303,6 +314,7 @@ export class ProviderOpsService {
     },
   ) {
     await this.requireProviderOrder(userId, orderId, input.organizationId);
+    await this.assertContractNotSuspended(orderId);
     const assignment = await this.prisma.trip_assignments.findFirst({ where: { order_id: orderId, status: 'ACTIVE' } });
     if (!assignment) throw new AppError('BUSINESS_RULE_VIOLATION', 'Assign a vehicle and driver first');
     if (input.eventType === 'CARGO_COLLECTED' && input.unitCount == null) {

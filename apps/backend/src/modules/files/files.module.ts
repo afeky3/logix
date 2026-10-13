@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { OrganizationsModule } from '../organizations/organizations.module';
-import { FilesController, PublicAvatarController } from './files.controller';
+import { FilesController, LinkedFileController, PublicAvatarController } from './files.controller';
 import { FilesService } from './files.service';
 
 @Module({
   // JwtAuthGuard needs JwtService; OrganizationsModule gives KYB queueing.
   imports: [JwtModule.register({}), OrganizationsModule],
-  controllers: [FilesController, PublicAvatarController],
+  controllers: [FilesController, PublicAvatarController, LinkedFileController],
   providers: [FilesService],
   exports: [FilesService],
 })

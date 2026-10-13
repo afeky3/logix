@@ -68,6 +68,8 @@ export class OpportunitiesService {
       weightUnit: d?.weight_unit,
       quantity: d?.quantity,
       loadingAssistance: d?.loading_assistance,
+      longTermContract: d?.long_term_contract ?? false,
+      contractTerm: d?.long_term_contract ? d.contract_term : null,
       specialHandling: d?.special_handling,
       borderInstructions: d?.border_instructions,
       vehiclesCount: d?.vehicles_count,

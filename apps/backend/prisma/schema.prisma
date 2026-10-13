@@ -523,6 +523,7 @@ model payment_intents {
   purchase_order_id     String?               @db.Uuid
   additional_charge_id  String?               @db.Uuid
   insurance_request_id  String?               @db.Uuid
+  contract_cycle_id      String?               @db.Uuid
   payer_org_id          String                @db.Uuid
   payer_user_id         String                @db.Uuid
   amount                BigInt
@@ -4299,6 +4300,8 @@ enum payable_type {
   PURCHASE_ORDER
   ADDITIONAL_CHARGE
   INSURANCE_PREMIUM
+  CONTRACT_CYCLE
+
 
   @@schema("core")
 }
@@ -4828,4 +4831,63 @@ enum zatca_status {
   REJECTED
 
   @@schema("core")
+}
+
+enum contract_status {
+  ACTIVE
+  SUSPENDED
+  ENDING
+  ENDED
+
+  @@schema("core")
+}
+
+enum contract_cycle_status {
+  DUE
+  PAID
+  OVERDUE
+  VOID
+
+  @@schema("core")
+}
+
+/// Money columns are core.halalas domains: write them with raw SQL and explicit casts.
+model recurring_contracts {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id         String            @unique @db.Uuid
+  customer_org_id  String            @db.Uuid
+  provider_org_id  String            @db.Uuid
+  term_months      Int?              @db.SmallInt
+  cycle_amount     BigInt
+  start_date       DateTime          @db.Date
+  status           contract_status   @default(ACTIVE)
+  suspended_at     DateTime?         @db.Timestamptz(6)
+  end_requested_at DateTime?         @db.Timestamptz(6)
+  ended_at         DateTime?         @db.Timestamptz(6)
+  created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime          @default(now()) @db.Timestamptz(6)
+  contract_cycles  contract_cycles[]
+
+  @@schema("svc")
+}
+
+model contract_cycles {
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contract_id   String                @db.Uuid
+  cycle_no      Int                   @db.SmallInt
+  period_start  DateTime              @db.Date
+  period_end    DateTime              @db.Date
+  due_date      DateTime              @db.Date
+  amount        BigInt
+  status        contract_cycle_status
+  reminder_at   DateTime?             @db.Timestamptz(6)
+  paid_at       DateTime?             @db.Timestamptz(6)
+  invoice_id    String?               @db.Uuid
+  settlement_id String?               @db.Uuid
+  created_at    DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime              @default(now()) @db.Timestamptz(6)
+  recurring_contracts recurring_contracts @relation(fields: [contract_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([contract_id, cycle_no])
+  @@schema("svc")
 }

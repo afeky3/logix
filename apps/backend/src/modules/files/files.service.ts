@@ -3,6 +3,7 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { KybService } from '../organizations/kyb.service';
@@ -46,6 +47,7 @@ export class FilesService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly kyb: KybService,
+    private readonly jwt: JwtService,
   ) {}
 
   private get storageDir(): string {
@@ -113,42 +115,76 @@ export class FilesService {
     };
   }
 
+  /** Throws unless `userId` may read this (non-public) file. */
+  private async assertCanRead(
+    file: { id: string; purpose: string; uploaded_by_user_id: string | null; organization_id: string | null },
+    userId: string,
+  ) {
+    // Avatars, logos and product images are accessible to any authenticated user
+    if (file.purpose === 'AVATAR' || file.purpose === 'PRODUCT_IMAGE') return;
+    if (file.uploaded_by_user_id === userId) return;
+
+    // Chat attachments: allow any conversation participant to download
+    if (file.purpose === 'CHAT_ATTACHMENT') {
+      const msg = await this.prisma.$queryRaw<[{ conversation_id: string }?]>`
+        SELECT conversation_id FROM msg.messages
+        WHERE ${file.id}::uuid = ANY(attachment_file_ids)
+        LIMIT 1
+      `;
+      const convId = msg[0]?.conversation_id;
+      if (!convId) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
+      const memberships = await this.prisma.memberships.findMany({
+        where: { user_id: userId, status: 'ACTIVE' },
+        select: { organization_id: true },
+      });
+      const orgIds = memberships.map((m) => m.organization_id);
+      const participant = await this.prisma.conversation_participants.findFirst({
+        where: { conversation_id: convId, organization_id: { in: orgIds }, left_at: null },
+      });
+      if (!participant) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
+      return;
+    }
+
+    // Shipment documents: both parties of the order they were attached to
+    if (file.purpose === 'SHIPMENT_DOCUMENT') {
+      const rows = await this.prisma.$queryRaw<{ customer_org_id: string; provider_org_id: string }[]>`
+        SELECT o.customer_org_id, o.provider_org_id
+        FROM svc.order_milestones m JOIN svc.orders o ON o.id = m.order_id
+        WHERE ${file.id}::uuid = ANY(m.evidence_file_ids)
+        UNION ALL
+        SELECT o.customer_org_id, o.provider_org_id
+        FROM transport.trip_events t JOIN svc.orders o ON o.id = t.order_id
+        WHERE ${file.id}::uuid = ANY(t.document_file_ids)
+        LIMIT 1
+      `;
+      const parties = rows[0];
+      if (parties) {
+        const membership = await this.prisma.memberships.findFirst({
+          where: {
+            user_id: userId,
+            status: 'ACTIVE',
+            organization_id: { in: [parties.customer_org_id, parties.provider_org_id] },
+          },
+        });
+        if (membership) return;
+      }
+    }
+
+    if (!file.organization_id) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
+    await this.requireMembership(file.organization_id, userId);
+  }
+
   /** Returns the file's bytes plus the metadata needed for response headers,
    * after confirming `userId` is allowed to see it. Never resolves a path
    * outside `storageDir`, even if `storage_key` were ever corrupted. */
   async download(fileId: string, userId: string) {
     const file = await this.prisma.files.findUnique({ where: { id: fileId } });
     if (!file || file.deleted_at) throw new AppError('NOT_FOUND', 'File not found');
+    await this.assertCanRead(file, userId);
+    return this.readFile(file);
+  }
 
-    // Avatars, logos and product images are accessible to any authenticated user
-    if (file.purpose !== 'AVATAR' && file.purpose !== 'PRODUCT_IMAGE') {
-      const isUploader = file.uploaded_by_user_id === userId;
-      if (!isUploader) {
-        // Chat attachments: allow any conversation participant to download
-        if (file.purpose === 'CHAT_ATTACHMENT') {
-          const msg = await this.prisma.$queryRaw<[{ conversation_id: string }?]>`
-            SELECT conversation_id FROM msg.messages
-            WHERE ${fileId}::uuid = ANY(attachment_file_ids)
-            LIMIT 1
-          `;
-          const convId = msg[0]?.conversation_id;
-          if (!convId) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
-          const memberships = await this.prisma.memberships.findMany({
-            where: { user_id: userId, status: 'ACTIVE' },
-            select: { organization_id: true },
-          });
-          const orgIds = memberships.map((m) => m.organization_id);
-          const participant = await this.prisma.conversation_participants.findFirst({
-            where: { conversation_id: convId, organization_id: { in: orgIds }, left_at: null },
-          });
-          if (!participant) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
-        } else {
-          if (!file.organization_id) throw new AppError('FORBIDDEN', 'Not permitted to view this file');
-          await this.requireMembership(file.organization_id, userId);
-        }
-      }
-    }
-
+  private async readFile(file: { id: string; storage_key: string; mime_type: string; original_name: string | null }) {
     const absPath = this.resolveSafePath(file.storage_key);
     const buffer = await readFile(absPath);
     return {
@@ -156,6 +192,38 @@ export class FilesService {
       mimeType: file.mime_type,
       originalName: file.original_name ?? `${file.id}`,
     };
+  }
+
+  /**
+   * A short-lived link the app can open in the browser (an authenticated
+   * download can't be a plain URL). Access is checked now; the token only
+   * proves it was, for this file, within the last minute and a half.
+   */
+  async createDownloadLink(fileId: string, userId: string) {
+    const file = await this.prisma.files.findUnique({ where: { id: fileId } });
+    if (!file || file.deleted_at) throw new AppError('NOT_FOUND', 'File not found');
+    await this.assertCanRead(file, userId);
+    const token = await this.jwt.signAsync(
+      { fid: fileId },
+      { secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'), audience: 'file-download', subject: userId, expiresIn: 90 },
+    );
+    return { path: `files/${fileId}/content?t=${token}`, expiresInSeconds: 90 };
+  }
+
+  async downloadWithToken(fileId: string, token: string | undefined) {
+    let payload: { fid?: string };
+    try {
+      payload = await this.jwt.verifyAsync(token ?? '', {
+        secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
+        audience: 'file-download',
+      });
+    } catch {
+      throw new AppError('FORBIDDEN', 'This download link is invalid or has expired');
+    }
+    if (payload.fid !== fileId) throw new AppError('FORBIDDEN', 'This download link is invalid or has expired');
+    const file = await this.prisma.files.findUnique({ where: { id: fileId } });
+    if (!file || file.deleted_at) throw new AppError('NOT_FOUND', 'File not found');
+    return this.readFile(file);
   }
 
   /** Upload a user avatar — no org required; stored under user's own folder. */
