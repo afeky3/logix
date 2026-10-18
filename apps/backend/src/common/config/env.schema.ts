@@ -46,6 +46,10 @@ export const envSchema = z.object({
   FILES_STORAGE_DIR: z.string().default('/home/ubuntu/logix/storage/files'),
   FILES_MAX_SIZE_MB: z.coerce.number().int().positive().default(20),
 
+  // Customs orders (client step 3): after accepting a broker's quote the
+  // customer issues the broker an authorization on the Fasah platform.
+  FASAH_AUTHORIZATION_URL: z.string().url().default('https://www.fasah.sa'),
+
   APP_VERSION_MIN_IOS: z.string().default('1.0.0'),
   APP_VERSION_MIN_ANDROID: z.string().default('1.0.0'),
 });

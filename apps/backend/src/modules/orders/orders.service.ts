@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
@@ -56,6 +57,7 @@ export class OrdersService {
     private readonly progress: OrderProgressService,
     private readonly invoices: InvoicesService,
     private readonly contracts: ContractsService,
+    private readonly config: ConfigService,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -576,6 +578,9 @@ export class OrdersService {
       allowedActions: this.allowedActions(o.status, role, flags),
       originSummary: req?.origin_summary ?? null,
       destinationSummary: req?.destination_summary ?? null,
+      // Customs: where the customer authorizes the broker once the quote is accepted.
+      fasahAuthorizationUrl:
+        o.service_type === 'CUSTOMS' ? this.config.getOrThrow<string>('FASAH_AUTHORIZATION_URL') : null,
     };
   }
 

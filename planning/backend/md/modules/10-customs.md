@@ -62,6 +62,28 @@ Import, export and transit clearance through licensed customs brokers. It covers
 
 ## API
 
+### Implemented — request draft (client step 3)
+
+1. Customer picks the movement (`IMPORT` / `EXPORT` / `TRANSIT`), then the port type (`SEA` / `AIR` / `LAND`).
+2. Documents offered per movement — **all optional for now** (`CUSTOMS_DOCS_MANDATORY = false` in `customs.service.ts`; flip it to require them on submit, SABER and OTHER stay optional):
+   - IMPORT / TRANSIT: `BILL_OF_LADING`, `COMMERCIAL_INVOICE`, `PACKING_LIST`, `CERTIFICATE_OF_ORIGIN`, `SABER_CERTIFICATE`, `OTHER`
+   - EXPORT: `BOOKING_CONFIRMATION`, `COMMERCIAL_INVOICE`, `CERTIFICATE_OF_ORIGIN`, `OTHER`
+3. Free attachments: any number of extra files the broker asks for, any time before the request is cancelled.
+4. After the customer accepts a broker's quote, the order carries `fasahAuthorizationUrl` (env `FASAH_AUTHORIZATION_URL`) so the app can send them to Fasah to authorize the broker.
+
+| Method | Path | Notes |
+|---|---|---|
+| PUT | `/service-requests/{id}/customs-details` | `{ movement, portType, billOfLadingNo?, hsCode?, goodsDescription? }`, draft only |
+| GET | `/service-requests/{id}/customs-documents` | `{ movement, portType, documents: [{ type, required, status, fileId, fileName }], complete }` |
+| POST | `/service-requests/{id}/customs-documents` | `{ docType, fileId }`, draft only; file purpose `SHIPMENT_DOCUMENT` |
+| GET | `/service-requests/{id}/customs-attachments` | customer, or the provider on the live order |
+| POST | `/service-requests/{id}/customs-attachments` | `{ fileId, note? }`, customer only |
+| DELETE | `/service-requests/{id}/customs-attachments/{attachmentId}` | customer only |
+
+Submit requires `movement` and `portType`.
+
+### Planned
+
 Customer:
 
 | Method | Path |
