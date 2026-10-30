@@ -15,7 +15,7 @@ async function bootstrap(): Promise<void> {
     { bufferLogs: true },
   );
 
-  const maxSizeMb = Number(process.env.FILES_MAX_SIZE_MB ?? 20);
+  const maxSizeMb = Number(process.env.FILES_MAX_SIZE_MB ?? 10);
   // `as never`: pnpm hoists two slightly different `fastify` typings
   // (this package's peer dep vs. the one Nest resolves), so the plugin's
   // structural type doesn't quite match at compile time even though the

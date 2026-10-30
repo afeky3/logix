@@ -50,6 +50,27 @@ const setStatusSchema = z.object({
   status: z.enum(['PUBLISHED', 'PAUSED', 'REMOVED']),
 });
 
+const marginSchema = z.object({
+  profitMarginBps: z.number().int().min(0).max(10000),
+});
+
+/** Supplier profit margin: added automatically on top of each product base price. */
+@Controller('organizations/:id/profit-margin')
+@UseGuards(JwtAuthGuard)
+export class SupplierProfitMarginController {
+  constructor(private readonly products: SupplierProductsService) {}
+
+  @Get()
+  get(@Param('id') orgId: string, @CurrentUser() user: AppTokenPayload) {
+    return this.products.getProfitMargin(orgId, user.sub);
+  }
+
+  @Put()
+  set(@Param('id') orgId: string, @Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
+    return this.products.setProfitMargin(orgId, user.sub, parseBody(marginSchema, body).profitMarginBps);
+  }
+}
+
 /** Supplier product catalog (client round 1). */
 @Controller('organizations/:id/products')
 @UseGuards(JwtAuthGuard)

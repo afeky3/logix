@@ -65,7 +65,7 @@ export class QuotesService {
   }
 
   /** Shared by preview and submit — never persists, just computes. */
-  /** Commission bucket for a request: customs is 20%, every other service 10%
+  /** Commission bucket for a request: customs and storage are 20%, shipping and transport 10%
    * (client round 1). FREIGHT_TRANSPORT is the general bucket, so non-freight
    * services sit under it too; their rate lives in fin.commission_rules. */
   private async categoryFor(requestId?: string): Promise<CommissionCategory> {
@@ -74,7 +74,7 @@ export class QuotesService {
       where: { id: requestId },
       select: { service_type: true },
     });
-    return req?.service_type === 'CUSTOMS' ? 'CUSTOMS_STORAGE' : 'FREIGHT_TRANSPORT';
+    return req?.service_type === 'CUSTOMS' || req?.service_type === 'WAREHOUSING' ? 'CUSTOMS_STORAGE' : 'FREIGHT_TRANSPORT';
   }
 
   private async compute(input: QuoteInput, category: CommissionCategory) {

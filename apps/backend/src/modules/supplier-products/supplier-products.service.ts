@@ -3,6 +3,11 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 
+/** Final price = base + base * margin, rounded half-up to the halala (client round 2, item 4). */
+export function priceWithMargin(baseHalalas: number, marginBps: number): number {
+  return baseHalalas + Math.round((baseHalalas * marginBps) / 10000);
+}
+
 export interface CreateProductInput {
   name: string;
   description?: string;
@@ -146,6 +151,8 @@ export class SupplierProductsService {
 
     const unitCode = await this.matchUnitCode(input.unitText);
     const now = new Date();
+    const marginBps = await this.marginBps(orgId);
+    const baseHalalas = Math.round(input.unitPriceHalalas);
 
     // ck_products_published: PUBLISHED needs a listing consent — the
     // "I declare this listing is accurate" checkbox on the price/stock step.
@@ -165,7 +172,9 @@ export class SupplierProductsService {
     const updated = await this.prisma.products.update({
       where: { id: productId },
       data: {
-        unit_price: BigInt(Math.round(input.unitPriceHalalas)),
+        unit_price: BigInt(priceWithMargin(baseHalalas, marginBps)),
+        base_unit_price: BigInt(baseHalalas),
+        profit_margin_bps: marginBps,
         vat_treatment: input.vatTreatment,
         unit_code: unitCode,
         stock_qty: input.stockQty,
@@ -199,7 +208,10 @@ export class SupplierProductsService {
       specsText: specsArr.find((s) => s.key === 'specs')?.value ?? '',
       packagingText: specsArr.find((s) => s.key === 'packaging')?.value ?? '',
       status: product.status,
-      unitPriceHalalas: Number(product.unit_price),
+      unitPriceHalalas: Number(product.base_unit_price ?? product.unit_price),
+      basePriceHalalas: Number(product.base_unit_price ?? product.unit_price),
+      profitMarginBps: product.profit_margin_bps,
+      finalPriceHalalas: Number(product.unit_price),
       vatTreatment: product.vat_treatment ?? 'INCLUSIVE',
       unitCode: product.unit_code,
       stockQty: product.stock_qty,
@@ -249,7 +261,11 @@ export class SupplierProductsService {
         category_id: categoryId,
         specs: specsArr,
         ...(originCountryCode && { origin_country_code: originCountryCode }),
-        ...(input.unitPriceHalalas !== undefined && { unit_price: BigInt(Math.round(input.unitPriceHalalas)) }),
+        ...(input.unitPriceHalalas !== undefined && {
+          unit_price: BigInt(priceWithMargin(Math.round(input.unitPriceHalalas), await this.marginBps(orgId))),
+          base_unit_price: BigInt(Math.round(input.unitPriceHalalas)),
+          profit_margin_bps: await this.marginBps(orgId),
+        }),
         ...(input.stockQty !== undefined && { stock_qty: input.stockQty }),
         ...(input.moq !== undefined && { moq: input.moq }),
         ...(input.leadTimeDays !== undefined && { lead_time_days: input.leadTimeDays }),
@@ -305,6 +321,29 @@ export class SupplierProductsService {
     return { success: true };
   }
 
+  private async marginBps(orgId: string): Promise<number> {
+    const org = await this.prisma.organizations.findUnique({
+      where: { id: orgId },
+      select: { supplier_profit_margin_bps: true },
+    });
+    return org?.supplier_profit_margin_bps ?? 0;
+  }
+
+  async getProfitMargin(orgId: string, userId: string) {
+    await this.requireMembership(orgId, userId);
+    return { profitMarginBps: await this.marginBps(orgId) };
+  }
+
+  /** Applies to products created or re-priced from now on; existing prices are left alone. */
+  async setProfitMargin(orgId: string, userId: string, profitMarginBps: number) {
+    await this.requireMembership(orgId, userId);
+    await this.prisma.organizations.update({
+      where: { id: orgId },
+      data: { supplier_profit_margin_bps: profitMarginBps },
+    });
+    return { profitMarginBps };
+  }
+
   async list(orgId: string, userId: string, status?: string) {
     await this.requireMembership(orgId, userId);
     const rows = await this.prisma.products.findMany({
@@ -315,7 +354,10 @@ export class SupplierProductsService {
       id: p.id,
       name: p.name,
       status: p.status,
-      unitPriceHalalas: Number(p.unit_price),
+      unitPriceHalalas: Number(p.base_unit_price ?? p.unit_price),
+      basePriceHalalas: Number(p.base_unit_price ?? p.unit_price),
+      profitMarginBps: p.profit_margin_bps,
+      finalPriceHalalas: Number(p.unit_price),
       stockQty: p.stock_qty,
       moq: p.moq,
       unitCode: p.unit_code,

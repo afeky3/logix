@@ -44,7 +44,7 @@ export const envSchema = z.object({
   // only through an authenticated/authorized endpoint — never from a
   // public static path. Absolute path, outside any web root.
   FILES_STORAGE_DIR: z.string().default('/home/ubuntu/logix/storage/files'),
-  FILES_MAX_SIZE_MB: z.coerce.number().int().positive().default(20),
+  FILES_MAX_SIZE_MB: z.coerce.number().int().positive().default(10),
 
   // Customs orders (client step 3): after accepting a broker's quote the
   // customer issues the broker an authorization on the Fasah platform.

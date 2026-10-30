@@ -1192,6 +1192,8 @@ model products {
   pack_size            Int?
   lead_time_days       Int                      @db.SmallInt
   unit_price           BigInt
+  base_unit_price      BigInt?
+  profit_margin_bps    Int                      @default(0)
   vat_treatment        vat_treatment            @default(EXCLUSIVE)
   moq                  Int                      @default(1)
   stock_qty            Int                      @default(0)
@@ -2031,6 +2033,7 @@ model organizations {
   rating_avg                                                                 Decimal?                    @db.Decimal(3, 2)
   rating_count                                                               Int                         @default(0)
   completed_jobs_count                                                       Int                         @default(0)
+  supplier_profit_margin_bps                                                 Int                         @default(0)
   reliability_score                                                          Decimal?                    @db.Decimal(5, 2)
   created_by_user_id                                                         String?                     @db.Uuid
   version                                                                    Int                         @default(1)
