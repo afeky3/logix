@@ -220,13 +220,22 @@ export class StaffAuthService {
 
   async me(staffId: string) {
     const staff = await this.prisma.staff_users.findUniqueOrThrow({ where: { id: staffId } });
+    const grants = await this.prisma.staff_user_roles.findMany({
+      where: { staff_user_id: staffId },
+      select: { staff_roles: { select: { code: true, staff_role_permissions: { select: { permission: true } } } } },
+    });
+    const roles = grants.map((g) => g.staff_roles.code);
     return {
       id: staff.id,
       email: staff.email,
       fullName: staff.full_name,
       locale: staff.locale,
-      // TODO(RBAC): populate from staff_user_roles → staff_role_permissions.
-      permissions: [] as string[],
+      roles,
+      // '*' = SUPER_ADMIN, who passes every permission check (staff-permission.guard.ts).
+      permissions: [
+        ...(roles.includes('SUPER_ADMIN') ? ['*'] : []),
+        ...new Set(grants.flatMap((g) => g.staff_roles.staff_role_permissions.map((p) => p.permission))),
+      ],
     };
   }
 

@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { CountriesService } from '../../common/countries/countries.service';
 import { CustomsService } from '../customs/customs.service';
 import { StorageService } from '../storage/storage.service';
 import { ShippingService } from '../shipping/shipping.service';
@@ -70,6 +71,7 @@ export class RequestsService {
     private readonly customs: CustomsService,
     private readonly storage: StorageService,
     private readonly shipping: ShippingService,
+    private readonly countries: CountriesService,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -85,8 +87,12 @@ export class RequestsService {
     userId: string,
     organizationId: string,
     serviceType: 'TRANSPORT' | 'CUSTOMS' | 'WAREHOUSING' | 'SHIPPING' = 'TRANSPORT',
+    countryCode?: string,
   ) {
     await this.requireMembership(organizationId, userId);
+    const country = countryCode
+      ? await this.countries.assertValid(countryCode)
+      : await this.countries.orgCountry(organizationId);
     const reference = await this.refs.next('LX');
     const request = await this.prisma.service_requests.create({
       data: {
@@ -95,6 +101,7 @@ export class RequestsService {
         service_type: serviceType,
         customer_org_id: organizationId,
         created_by_user_id: userId,
+        country_code: country,
         status: 'DRAFT',
         transport_request_details: { create: {} },
         ...(serviceType === 'SHIPPING' ? { shipping_request_details: { create: {} } } : {}),
@@ -117,11 +124,13 @@ export class RequestsService {
     return this.serialize(await this.getOrThrow(id, userId));
   }
 
-  async list(userId: string, organizationId: string, status?: string) {
+  async list(userId: string, organizationId: string, status?: string, country?: string) {
     await this.requireMembership(organizationId, userId);
+    const countryFilter = await this.countries.resolveFilter({ country });
     const rows = await this.prisma.service_requests.findMany({
       where: {
         customer_org_id: organizationId,
+        ...(countryFilter && { country_code: countryFilter }),
         status: status ? (status as never) : undefined,
       },
       orderBy: { created_at: 'desc' },
@@ -410,6 +419,7 @@ export class RequestsService {
       id: r.id,
       reference: r.reference,
       serviceType: r.service_type,
+      countryCode: r.country_code,
       status: r.status,
       currentStep: r.current_step,
       originSummary: r.origin_summary,

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { CountriesService } from '../../common/countries/countries.service';
 
 /** CUSTOMER activates immediately; everything else needs KYB (S2) first —
  * backend/md/modules/02-organizations-kyb-terms.md "Onboarding flows". */
@@ -9,21 +10,43 @@ const IMMEDIATE_WORKSPACES = new Set(['CUSTOMER']);
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly countries: CountriesService,
+  ) {}
 
-  async create(userId: string, kind: 'INDIVIDUAL' | 'BUSINESS', displayName: string) {
+  async create(userId: string, kind: 'INDIVIDUAL' | 'BUSINESS', displayName: string, countryCode?: string) {
+    const country = countryCode ? await this.countries.assertValid(countryCode) : undefined;
     const org = await this.prisma.organizations.create({
       data: {
         id: randomUUID(),
         kind,
         display_name: displayName,
+        ...(country && { country_code: country }),
         created_by_user_id: userId,
         memberships: {
           create: { id: randomUUID(), user_id: userId, role: 'OWNER', joined_at: new Date() },
         },
       },
     });
-    return { id: org.id, kind: org.kind, displayName: org.display_name, status: org.status };
+    return {
+      id: org.id,
+      kind: org.kind,
+      displayName: org.display_name,
+      status: org.status,
+      ...(await this.countries.label(org.country_code)),
+    };
+  }
+
+  /** The account's country. Existing products and requests keep the country they were made with. */
+  async setCountry(orgId: string, userId: string, countryCode: string) {
+    const membership = await this.requireMembership(orgId, userId);
+    if (membership.role !== 'OWNER' && membership.role !== 'MANAGER') {
+      throw new AppError('FORBIDDEN', 'Only an owner or manager can change the account country');
+    }
+    const country = await this.countries.assertValid(countryCode);
+    await this.prisma.organizations.update({ where: { id: orgId }, data: { country_code: country } });
+    return { id: orgId, ...(await this.countries.label(country)) };
   }
 
   /** Throws FORBIDDEN unless `userId` is an active member of `orgId`. */

@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { envSchema } from './common/config/env.schema';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
+import { CountriesModule } from './common/countries/countries.module';
 import { HealthModule } from './modules/health/health.module';
 import { AppConfigModule } from './modules/app-config/app-config.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -23,6 +24,8 @@ import { ProviderOpsModule } from './modules/provider-ops/provider-ops.module';
 import { OrgMembersModule } from './modules/org-members/org-members.module';
 import { AdminMarketplaceModule } from './modules/admin-marketplace/admin-marketplace.module';
 import { MessagesModule } from './modules/messages/messages.module';
+import { AdminPaymentsModule } from './modules/admin-payments/admin-payments.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -37,6 +40,7 @@ import { MessagesModule } from './modules/messages/messages.module';
       },
     }),
     PrismaModule,
+    CountriesModule,
     HealthModule,
     AppConfigModule,
     AuthModule,
@@ -57,6 +61,8 @@ import { MessagesModule } from './modules/messages/messages.module';
     OrgMembersModule,
     AdminMarketplaceModule,
     MessagesModule,
+    NotificationsModule,
+    AdminPaymentsModule,
   ],
 })
 export class AppModule {}

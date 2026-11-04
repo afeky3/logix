@@ -16,7 +16,8 @@
     "finance": "المالية",
     "cases": "القضايا",
     "settings": "الإعدادات",
-    "accounts": "الحسابات"
+    "accounts": "الحسابات",
+    "payments": "المدفوعات"
   },
   "login": {
     "title": "تسجيل الدخول",
@@ -203,7 +204,10 @@
       "netToProvider": "صافي مزوّد الخدمة",
       "paymentIntents": "محاولات الدفع",
       "noPaymentIntents": "لا توجد محاولات دفع بعد.",
-      "loadError": "تعذّر تحميل بيانات هذا الطلب."
+      "loadError": "تعذّر تحميل بيانات هذا الطلب.",
+      "bankTransfer": "تحويل بنكي",
+      "rejectionReason": "سبب الرفض",
+      "reviewInPayments": "مراجعة في المدفوعات"
     }
   },
   "accounts": {
@@ -270,6 +274,72 @@
       "moq": "الحد الأدنى",
       "status": "الحالة",
       "created": "تاريخ الإضافة"
+    }
+  },
+  "payments": {
+    "title": "المدفوعات",
+    "subtitle": "التحويلات البنكية بانتظار التحقق: أكّد وصول المبلغ أو ارفض مع ذكر السبب",
+    "loading": "جارٍ التحميل…",
+    "empty": "لا توجد مدفوعات في هذا العرض.",
+    "allStatuses": "الكل",
+    "loadFailed": "تعذّر تحميل المدفوعات",
+    "actionFailed": "تعذّر تنفيذ الإجراء",
+    "search": "بحث",
+    "searchPlaceholder": "رقم الطلب أو اسم العميل",
+    "from": "من",
+    "to": "إلى",
+    "status": {
+      "AWAITING_VERIFICATION": "بانتظار التحقق",
+      "PAID": "مدفوع",
+      "REJECTED": "مرفوض",
+      "EXPIRED": "منتهي",
+      "CANCELLED": "ملغي"
+    },
+    "columns": {
+      "createdAt": "التاريخ",
+      "order": "الطلب",
+      "customer": "العميل",
+      "type": "النوع",
+      "amount": "المبلغ",
+      "status": "الحالة"
+    },
+    "type": {
+      "ORDER": "طلب",
+      "CONTRACT_CYCLE": "قسط شهري رقم {n}"
+    },
+    "approve": "قبول",
+    "reject": "رفض",
+    "approveLate": "قبول متأخر",
+    "approveTitle": "قبول هذا التحويل؟",
+    "approveBody": "أكّد أن مبلغ {amount} للطلب {order} وصل إلى حساب الشركة. سيتقدّم الطلب ويصل إشعار للعميل ومقدّم الخدمة.",
+    "rejectTitle": "رفض هذا التحويل؟",
+    "rejectBody": "سيُسجَّل مبلغ {amount} للطلب {order} كغير مستلم. سيصل العميل سبب الرفض ويمكنه إرسال تحويل جديد.",
+    "lateNote": "انتهت مهلة الدفع قبل المراجعة. القبول الآن يؤكّد الطلب ويُسجَّل كقبول متأخر.",
+    "reasonLabel": "السبب (يظهر للعميل)",
+    "reasonPlaceholder": "مثال: المبلغ المحوّل لا يطابق الفاتورة",
+    "reasonRequired": "اكتب السبب (3 أحرف على الأقل).",
+    "cancel": "إلغاء",
+    "confirmApprove": "قبول",
+    "confirmReject": "رفض",
+    "approved": "تم قبول تحويل الطلب {order}.",
+    "rejected": "تم رفض تحويل الطلب {order}.",
+    "previous": "السابق",
+    "next": "التالي",
+    "pageOf": "صفحة {page} من {pages}",
+    "forbidden": "ليست لديك صلاحية عرض المدفوعات أو التحقق منها.",
+    "payer": "المحوّل",
+    "phone": "الجوال",
+    "requestedAt": "وقت الإبلاغ عن التحويل",
+    "holdUntil": "المهلة حتى",
+    "history": "القرارات السابقة",
+    "blocked": "لا يمكن القبول: {reason}",
+    "by": "بواسطة {name}",
+    "action": {
+      "payment": {
+        "approved": "تم القبول",
+        "approved_late": "تم القبول (متأخر)",
+        "rejected": "تم الرفض"
+      }
     }
   },
   "finance": {

@@ -4,9 +4,12 @@ import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AppTokenPayload } from '../../common/auth/jwt-payload';
+import { countryFilterSchema } from '../../common/countries/country.schema';
 import { OpportunitiesService } from './opportunities.service';
 
 const orgQuery = z.object({ organizationId: z.string().uuid() });
+// The list defaults to the provider account's country; ALL shows every country.
+const listQuery = orgQuery.extend({ country: countryFilterSchema.optional() });
 const declineSchema = z.object({ organizationId: z.string().uuid(), reasonCode: z.string().optional() });
 const askSchema = z.object({ organizationId: z.string().uuid(), question: z.string().min(1).max(1000) });
 
@@ -18,8 +21,8 @@ export class OpportunitiesController {
 
   @Get()
   list(@Query() query: Record<string, unknown>, @CurrentUser() user: AppTokenPayload) {
-    const { organizationId } = parseBody(orgQuery, query);
-    return this.opportunities.list(user.sub, organizationId);
+    const { organizationId, country } = parseBody(listQuery, query);
+    return this.opportunities.list(user.sub, organizationId, country);
   }
 
   @Get(':requestId')

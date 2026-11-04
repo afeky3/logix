@@ -5,6 +5,7 @@ import * as argon2 from 'argon2';
 import { parsePhoneNumberWithError } from 'libphonenumber-js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { CountriesService } from '../../common/countries/countries.service';
 import { toBytes, bytesToUtf8 } from '../../common/util/bytes';
 import { TokenService } from './token.service';
 import { WhatsAppOtpSender } from '../../infrastructure/notifications/whatsapp-otp.sender';
@@ -36,6 +37,7 @@ export class AppAuthService {
     private readonly config: ConfigService,
     private readonly tokens: TokenService,
     private readonly whatsappOtp: WhatsAppOtpSender,
+    private readonly countries: CountriesService,
   ) {}
 
   /** Best-effort E.164 normalization. Phone format is intentionally
@@ -313,11 +315,14 @@ export class AppAuthService {
       where: { user_id: userId, status: 'ACTIVE' },
       include: { organizations: { include: { org_workspaces: true } } },
     });
+    const labels = await this.countries.labels(memberships.map((m) => m.organizations.country_code));
     return memberships.flatMap((m) =>
       m.organizations.org_workspaces.map((w) => ({
         organizationId: m.organization_id,
         organizationName: m.organizations.display_name,
         orgKind: m.organizations.kind,
+        // The account's country: what the app filters services and products by.
+        ...labels.get(m.organizations.country_code),
         workspace: w.workspace,
         status: w.status,
         role: m.role,

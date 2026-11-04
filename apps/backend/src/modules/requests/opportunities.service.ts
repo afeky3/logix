@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { CountriesService } from '../../common/countries/countries.service';
 
 const REQUEST_INCLUDE = {
   service_requests: {
@@ -20,7 +21,10 @@ const REQUEST_INCLUDE = {
  * contacts or files (D-16). backend/md/modules/05-requests-quotes-matching.md §2. */
 @Injectable()
 export class OpportunitiesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly countries: CountriesService,
+  ) {}
 
   private async requireMembership(orgId: string, userId: string) {
     const membership = await this.prisma.memberships.findUnique({
@@ -31,10 +35,15 @@ export class OpportunitiesService {
     }
   }
 
-  async list(userId: string, organizationId: string) {
+  async list(userId: string, organizationId: string, country?: string) {
     await this.requireMembership(organizationId, userId);
+    const countryFilter = await this.countries.resolveFilter({ country, organizationId });
     const matches = await this.prisma.request_matches.findMany({
-      where: { provider_org_id: organizationId, declined_at: null },
+      where: {
+        provider_org_id: organizationId,
+        declined_at: null,
+        ...(countryFilter && { service_requests: { country_code: countryFilter } }),
+      },
       orderBy: { created_at: 'desc' },
       include: REQUEST_INCLUDE,
     });
@@ -148,6 +157,7 @@ export class OpportunitiesService {
       reference: string;
       status: string;
       service_type: string;
+      country_code: string;
       service_date: Date | null;
       expires_at: Date | null;
       origin_summary: string | null;
@@ -178,6 +188,7 @@ export class OpportunitiesService {
       reference: r.reference,
       status: r.status,
       serviceType: r.service_type,
+      countryCode: r.country_code,
       activity: m.activity,
       viewed: m.viewed_at != null,
       quoted: m.quoted_at != null,

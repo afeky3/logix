@@ -1,16 +1,26 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { CountriesService } from '../../common/countries/countries.service';
 
 /** Public-ish product catalog for buyers (mirrors supplier-products, read side). */
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly countries: CountriesService,
+  ) {}
 
-  async list(opts: { category?: string; q?: string; limit: number }) {
+  async list(
+    userId: string,
+    opts: { category?: string; q?: string; limit: number; organizationId?: string; country?: string },
+  ) {
+    if (opts.organizationId) await this.requireMembership(opts.organizationId, userId);
+    const country = await this.countries.resolveFilter(opts);
     const where = {
       status: 'PUBLISHED' as const,
       deleted_at: null,
+      ...(country && { country_code: country }),
       product_categories: opts.category ? { slug: opts.category } : undefined,
       name: opts.q ? { contains: opts.q, mode: 'insensitive' as const } : undefined,
     };
@@ -24,7 +34,17 @@ export class ProductsService {
         product_images: { select: { file_id: true, is_cover: true }, orderBy: { sort_order: 'asc' }, take: 1 },
       },
     });
-    return rows.map((p) => this.summarize(p));
+    const labels = await this.countries.labels(rows.map((p) => p.country_code));
+    return rows.map((p) => ({ ...this.summarize(p), ...labels.get(p.country_code) }));
+  }
+
+  private async requireMembership(orgId: string, userId: string) {
+    const membership = await this.prisma.memberships.findUnique({
+      where: { user_id_organization_id: { user_id: userId, organization_id: orgId } },
+    });
+    if (!membership || membership.status !== 'ACTIVE') {
+      throw new AppError('FORBIDDEN', 'Not a member of this organization');
+    }
   }
 
   async get(id: string) {
@@ -57,6 +77,7 @@ export class ProductsService {
       moq: p.moq,
       stockQty: p.stock_qty,
       leadTimeDays: p.lead_time_days,
+      ...(await this.countries.label(p.country_code)),
       originCountryAr: p.countries?.name_ar ?? null,
       originCountryEn: p.countries?.name_en ?? null,
       specs: p.specs,

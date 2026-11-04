@@ -4,6 +4,7 @@ import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AppTokenPayload } from '../../common/auth/jwt-payload';
+import { countryCodeSchema } from '../../common/countries/country.schema';
 import { SupplierProductsService } from './supplier-products.service';
 
 const createSchema = z.object({
@@ -16,6 +17,7 @@ const createSchema = z.object({
   packagingText: z.string().max(1000).optional(),
   imageFileId: z.string().uuid().optional(),
   imageFileIds: z.array(z.string().uuid()).max(5).optional(),
+  countryCode: countryCodeSchema.optional(),
 });
 
 const publishSchema = z.object({
@@ -44,6 +46,7 @@ const updateSchema = z.object({
   moq: z.number().int().positive().optional(),
   leadTimeDays: z.number().int().nonnegative().optional(),
   imageFileIds: z.array(z.string().uuid()).max(5).optional(),
+  countryCode: countryCodeSchema.optional(),
 });
 
 const setStatusSchema = z.object({

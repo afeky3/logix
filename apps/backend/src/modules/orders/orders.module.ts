@@ -13,5 +13,6 @@ import { ReferenceGenerator } from '../../common/references/reference-generator'
   imports: [JwtModule.register({}), OrderProgressModule], // JwtAuthGuard/StaffAuthGuard need JwtService
   controllers: [OrdersController, AdminOrdersController],
   providers: [OrdersService, AdminOrdersService, ReferenceGenerator, InvoicesService, ContractsService],
+  exports: [OrdersService, ContractsService], // admin-payments settles an approved transfer through them
 })
 export class OrdersModule {}

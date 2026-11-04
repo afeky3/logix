@@ -16,7 +16,8 @@
     "finance": "Finance",
     "cases": "Cases",
     "settings": "Settings",
-    "accounts": "Accounts"
+    "accounts": "Accounts",
+    "payments": "Payments"
   },
   "login": {
     "title": "Sign in",
@@ -203,7 +204,10 @@
       "netToProvider": "Net to provider",
       "paymentIntents": "Payment attempts",
       "noPaymentIntents": "No payment attempts yet.",
-      "loadError": "Could not load this order."
+      "loadError": "Could not load this order.",
+      "bankTransfer": "Bank transfer",
+      "rejectionReason": "Rejection reason",
+      "reviewInPayments": "Review in Payments"
     }
   },
   "accounts": {
@@ -270,6 +274,72 @@
       "moq": "MOQ",
       "status": "Status",
       "created": "Created"
+    }
+  },
+  "payments": {
+    "title": "Payments",
+    "subtitle": "Bank transfers waiting for verification: confirm the money arrived, or reject with a reason",
+    "loading": "Loading…",
+    "empty": "No payments in this view.",
+    "allStatuses": "All",
+    "loadFailed": "Failed to load payments",
+    "actionFailed": "The action failed",
+    "search": "Search",
+    "searchPlaceholder": "Order reference or customer name",
+    "from": "From",
+    "to": "To",
+    "status": {
+      "AWAITING_VERIFICATION": "Awaiting verification",
+      "PAID": "Paid",
+      "REJECTED": "Rejected",
+      "EXPIRED": "Expired",
+      "CANCELLED": "Cancelled"
+    },
+    "columns": {
+      "createdAt": "Date",
+      "order": "Order",
+      "customer": "Customer",
+      "type": "Type",
+      "amount": "Amount",
+      "status": "Status"
+    },
+    "type": {
+      "ORDER": "Order",
+      "CONTRACT_CYCLE": "Monthly instalment #{n}"
+    },
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveLate": "Approve (late)",
+    "approveTitle": "Approve this transfer?",
+    "approveBody": "Confirm that {amount} for order {order} reached the company account. The order moves forward and the customer and provider are notified.",
+    "rejectTitle": "Reject this transfer?",
+    "rejectBody": "{amount} for order {order} will be marked as not received. The customer is told why and can send a new transfer.",
+    "lateNote": "The payment hold had already expired. Approving now still confirms the order and is recorded as a late approval.",
+    "reasonLabel": "Reason (shown to the customer)",
+    "reasonPlaceholder": "e.g. The transferred amount does not match the invoice",
+    "reasonRequired": "Enter a reason (at least 3 characters).",
+    "cancel": "Cancel",
+    "confirmApprove": "Approve",
+    "confirmReject": "Reject",
+    "approved": "Transfer for {order} approved.",
+    "rejected": "Transfer for {order} rejected.",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {pages}",
+    "forbidden": "You don't have permission to view or verify payments.",
+    "payer": "Payer",
+    "phone": "Phone",
+    "requestedAt": "Transfer reported",
+    "holdUntil": "Hold until",
+    "history": "Previous decisions",
+    "blocked": "Can't approve: {reason}",
+    "by": "by {name}",
+    "action": {
+      "payment": {
+        "approved": "Approved",
+        "approved_late": "Approved (late)",
+        "rejected": "Rejected"
+      }
     }
   },
   "finance": {

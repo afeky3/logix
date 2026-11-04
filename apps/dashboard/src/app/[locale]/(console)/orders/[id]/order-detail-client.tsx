@@ -103,16 +103,36 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           {data.paymentIntents.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("noPaymentIntents")}</p>
           ) : (
-            <ul className="flex flex-col gap-2 text-sm">
+            <ul className="flex flex-col gap-3 text-sm">
               {data.paymentIntents.map((p) => (
-                <li key={p.id} className="flex items-center justify-between gap-4">
-                  <span className="bidi-isolate">
-                    {sar(p.amountHalalas)} · {new Date(p.createdAt).toLocaleString()}
-                    {p.failureCode ? ` · ${p.failureCode}` : ""}
-                  </span>
+                <li key={p.id} className="flex items-start justify-between gap-4">
+                  <div>
+                    <span className="bidi-isolate">
+                      {sar(p.amountHalalas)} · {new Date(p.createdAt).toLocaleString()}
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      {p.method === "BANK_TRANSFER" ? t("bankTransfer") : p.method}
+                    </p>
+                    {p.failureMessage ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {t("rejectionReason")}: {p.failureMessage}
+                      </p>
+                    ) : p.failureCode ? (
+                      <p className="bidi-isolate mt-1 text-xs text-muted-foreground">{p.failureCode}</p>
+                    ) : null}
+                    {(p.status === "INITIATED" || p.status === "PENDING") && (
+                      <Link href="/payments" className="mt-1 inline-block text-xs text-primary hover:underline">
+                        {t("reviewInPayments")}
+                      </Link>
+                    )}
+                  </div>
                   <Badge
                     variant={
-                      p.status === "PAID" ? "success" : p.status === "FAILED" || p.status === "EXPIRED" ? "danger" : "neutral"
+                      p.status === "PAID"
+                        ? "success"
+                        : p.status === "FAILED" || p.status === "EXPIRED"
+                          ? "danger"
+                          : "warning"
                     }
                   >
                     {p.status}

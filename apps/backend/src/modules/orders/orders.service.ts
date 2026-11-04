@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
@@ -9,8 +10,7 @@ import { InvoicesService } from './invoices.service';
 import { OrderProgressService } from './order-progress.service';
 import { cancellationQuote, cancellationTier } from './cancellation-policy';
 import { AUTO_RECEIPT_HOURS, PAYOUT_BUSINESS_DAYS, addBusinessDays, releaseSettlementHold } from './settlement-release';
-
-const PAYMENT_HOLD_MINUTES = 30;
+import { bankTransferHoldMs } from './payment-hold';
 
 interface OrderFlags {
   receiptConfirmed: boolean;
@@ -36,7 +36,12 @@ interface OrderFlags {
  * S3 (quotes.service.ts) — every write here goes through raw SQL with
  * explicit casts from the start.
  *
- * The 30-minute payment hold (`PAYMENT_HOLD_MINUTES`) is enforced by
+ * Payment is now a manual bank transfer: the customer transfers outside the
+ * app and taps "transferred", which calls acceptQuote. The intent then sits
+ * INITIATED ("awaiting verification") until staff approve or reject it from
+ * the dashboard (admin-payments). `simulatePayment` is dev/test only.
+ *
+ * The payment hold (`bankTransferHoldMs`, 72h by default) is enforced by
  * payment-expiry.service.ts's worker-only cron: an unpaid intent past
  * `expires_at` is marked EXPIRED, its order VOID, and the quote/request
  * reopened (or expired too, if their own windows closed meanwhile) —
@@ -183,7 +188,7 @@ export class OrdersService {
     currency: string,
   ): Promise<string> {
     const intentId = randomUUID();
-    const expiresAt = new Date(Date.now() + PAYMENT_HOLD_MINUTES * 60 * 1000);
+    const expiresAt = new Date(Date.now() + bankTransferHoldMs());
     await this.prisma.$executeRaw`
       INSERT INTO fin.payment_intents (
         id, payable_type, order_id, payer_org_id, payer_user_id,
@@ -192,7 +197,7 @@ export class OrdersService {
         ${intentId}::uuid, 'ORDER'::core.payable_type, ${orderId}::uuid,
         ${payerOrgId}::uuid, ${userId}::uuid,
         ${amount}::core.halalas, ${currency}::core.currency_code,
-        'CARD'::core.payment_method, 'fake', 'INITIATED'::core.payment_intent_status, ${expiresAt}::timestamptz
+        'BANK_TRANSFER'::core.payment_method, 'bank_transfer', 'INITIATED'::core.payment_intent_status, ${expiresAt}::timestamptz
       )
     `;
     return intentId;
@@ -205,8 +210,12 @@ export class OrdersService {
     return this.serializePaymentIntent(intentId);
   }
 
-  /** Fake-gateway stand-in for the real webhook — see class doc. */
+  /** Dev/test stand-in for staff verification — see class doc. Closed in prod: money only
+   * moves through admin-payments approve there. */
   async simulatePayment(userId: string, intentId: string, outcome: 'succeed' | 'fail') {
+    if (this.config.get('NODE_ENV') === 'prod') {
+      throw new AppError('FORBIDDEN', 'Payment simulation is disabled in production');
+    }
     const intent = await this.prisma.payment_intents.findUnique({ where: { id: intentId } });
     if (!intent) throw new AppError('NOT_FOUND', 'Payment intent not found');
     await this.requireMembership(intent.payer_org_id, userId);
@@ -236,36 +245,49 @@ export class OrdersService {
     }
     if (!intent.order_id) return;
 
-    const order = await this.prisma.orders.findUniqueOrThrow({ where: { id: intent.order_id } });
-    const now = new Date();
+    const orderId = intent.order_id;
+    await this.prisma.$transaction((tx) => this.settleOrderIntentTx(tx, intentId, orderId, `fake_${intentId}`, new Date()));
+    await this.finishOrderSettlement(orderId);
+  }
 
-    await this.prisma.$transaction([
-      this.prisma.payment_intents.update({
-        where: { id: intentId },
-        data: { status: 'PAID', paid_at: now, gateway_payment_id: `fake_${intentId}` },
-      }),
-      this.prisma.orders.update({
-        where: { id: order.id },
-        data: { status: 'CONFIRMED', payment_status: 'PAID', confirmed_at: now, last_update_at: now },
-      }),
-      this.prisma.quotes.update({
-        where: { id: order.accepted_quote_id },
-        data: { status: 'ACCEPTED', accepted_at: now },
-      }),
-      this.prisma.service_requests.update({
-        where: { id: order.request_id },
-        data: { status: 'CONVERTED' },
-      }),
-    ]);
-
+  /** The database half of paying an order: intent PAID, order CONFIRMED, quote accepted, request
+   * converted, every competing quote released. Runs in the caller's transaction so approving a
+   * bank transfer can commit it together with its audit row and notifications. */
+  async settleOrderIntentTx(
+    tx: Prisma.TransactionClient,
+    intentId: string,
+    orderId: string,
+    gatewayPaymentId: string,
+    now: Date,
+  ): Promise<void> {
+    const order = await tx.orders.findUniqueOrThrow({ where: { id: orderId } });
+    await tx.payment_intents.update({
+      where: { id: intentId },
+      data: { status: 'PAID', paid_at: now, gateway_payment_id: gatewayPaymentId },
+    });
+    await tx.orders.update({
+      where: { id: order.id },
+      data: { status: 'CONFIRMED', payment_status: 'PAID', confirmed_at: now, last_update_at: now },
+    });
+    await tx.quotes.update({
+      where: { id: order.accepted_quote_id },
+      data: { status: 'ACCEPTED', accepted_at: now },
+    });
+    await tx.service_requests.update({
+      where: { id: order.request_id },
+      data: { status: 'CONVERTED' },
+    });
     // Every other live quote on this request is now moot.
-    await this.prisma.quotes.updateMany({
+    await tx.quotes.updateMany({
       where: { request_id: order.request_id, status: 'SUBMITTED' },
       data: { status: 'NOT_SELECTED' },
     });
+  }
 
-    const invoiceId = await this.invoices.issueForOrderSafely(order.id);
-    await this.contracts.createForPaidOrder(order.id, invoiceId);
+  /** What follows a committed order payment: the invoice and, for recurring work, the contract. */
+  async finishOrderSettlement(orderId: string): Promise<void> {
+    const invoiceId = await this.invoices.issueForOrderSafely(orderId);
+    await this.contracts.createForPaidOrder(orderId, invoiceId);
   }
 
   async confirmReadiness(userId: string, orderId: string, organizationId: string) {
@@ -801,6 +823,9 @@ export class OrdersService {
       expiresAt: i.expires_at,
       paidAt: i.paid_at,
       failureCode: i.failure_code,
+      // Added for bank transfers: why staff rejected the transfer, shown to the customer.
+      failureMessage: i.failure_message,
+      method: i.method,
     };
   }
 }

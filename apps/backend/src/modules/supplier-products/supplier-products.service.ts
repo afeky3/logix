@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { CountriesService } from '../../common/countries/countries.service';
 
 /** Final price = base + base * margin, rounded half-up to the halala (client round 2, item 4). */
 export function priceWithMargin(baseHalalas: number, marginBps: number): number {
@@ -18,6 +19,8 @@ export interface CreateProductInput {
   packagingText?: string;
   imageFileId?: string;
   imageFileIds?: string[];
+  /** The country the listing is offered in; defaults to the supplier account's country. */
+  countryCode?: string;
 }
 
 export interface UpdateProductInput {
@@ -33,6 +36,7 @@ export interface UpdateProductInput {
   moq?: number;
   leadTimeDays?: number;
   imageFileIds?: string[];
+  countryCode?: string;
 }
 
 export interface PublishProductInput {
@@ -47,7 +51,10 @@ export interface PublishProductInput {
 /** Supplier product catalog, on mkt.products (which already existed for this). */
 @Injectable()
 export class SupplierProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly countries: CountriesService,
+  ) {}
 
   private async requireMembership(orgId: string, userId: string) {
     const membership = await this.prisma.memberships.findUnique({
@@ -91,6 +98,9 @@ export class SupplierProductsService {
     if (!category) throw new AppError('NOT_FOUND', `Unknown category: ${input.categorySlug}`);
 
     const originCountryCode = await this.matchCountryCode(input.originText);
+    const listingCountry = input.countryCode
+      ? await this.countries.assertValid(input.countryCode)
+      : await this.countries.orgCountry(orgId);
     const specs: { key: string; value: string }[] = [];
     if (input.specsText) specs.push({ key: 'specs', value: input.specsText });
     if (input.categorySlug === 'other' && input.categoryOther) specs.push({ key: 'categoryOther', value: input.categoryOther });
@@ -106,6 +116,7 @@ export class SupplierProductsService {
         description: input.description,
         specs,
         origin_country_code: originCountryCode,
+        country_code: listingCountry,
         unit_code: 'OTHER',
         lead_time_days: 1,
         unit_price: 1n, // placeholder — products_unit_price_check requires > 0; set for real on publish
@@ -128,7 +139,7 @@ export class SupplierProductsService {
       }
     }
 
-    return { id: productId, status: 'DRAFT' };
+    return { id: productId, status: 'DRAFT', ...(await this.countries.label(listingCountry)) };
   }
 
   async publish(orgId: string, userId: string, productId: string, input: PublishProductInput) {
@@ -218,6 +229,7 @@ export class SupplierProductsService {
       moq: product.moq,
       leadTimeDays: product.lead_time_days,
       imageFileIds: product.product_images.map((i) => i.file_id),
+      ...(await this.countries.label(product.country_code)),
     };
   }
 
@@ -252,6 +264,7 @@ export class SupplierProductsService {
     }
 
     const originCountryCode = input.originText ? await this.matchCountryCode(input.originText) : undefined;
+    const listingCountry = input.countryCode ? await this.countries.assertValid(input.countryCode) : undefined;
 
     await this.prisma.products.update({
       where: { id: productId },
@@ -261,6 +274,7 @@ export class SupplierProductsService {
         category_id: categoryId,
         specs: specsArr,
         ...(originCountryCode && { origin_country_code: originCountryCode }),
+        ...(listingCountry && { country_code: listingCountry }),
         ...(input.unitPriceHalalas !== undefined && {
           unit_price: BigInt(priceWithMargin(Math.round(input.unitPriceHalalas), await this.marginBps(orgId))),
           base_unit_price: BigInt(Math.round(input.unitPriceHalalas)),
@@ -350,10 +364,12 @@ export class SupplierProductsService {
       where: { supplier_org_id: orgId, deleted_at: null, status: status ? (status as never) : undefined },
       orderBy: { created_at: 'desc' },
     });
+    const labels = await this.countries.labels(rows.map((p) => p.country_code));
     return rows.map((p) => ({
       id: p.id,
       name: p.name,
       status: p.status,
+      ...labels.get(p.country_code),
       unitPriceHalalas: Number(p.base_unit_price ?? p.unit_price),
       basePriceHalalas: Number(p.base_unit_price ?? p.unit_price),
       profitMarginBps: p.profit_margin_bps,

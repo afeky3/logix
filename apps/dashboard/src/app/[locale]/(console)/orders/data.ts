@@ -37,6 +37,8 @@ export interface PaymentIntentRow {
   expiresAt: string;
   paidAt: string | null;
   failureCode: string | null;
+  failureMessage: string | null;
+  method: string;
   createdAt: string;
 }
 

@@ -6,6 +6,8 @@ export interface Staff {
   id: string;
   email: string;
   fullName: string;
+  /** Only /auth/me carries these ('*' = super admin); a fresh login result is topped up with a /me call. */
+  permissions?: string[];
 }
 
 type Status = "loading" | "authenticated" | "unauthenticated";
@@ -42,6 +44,15 @@ async function postJson<T>(url: string, body: unknown, accessToken?: string): Pr
     throw new Error(data?.error?.message ?? "Request failed");
   }
   return data as T;
+}
+
+async function fetchMe(token: string): Promise<Staff | null> {
+  try {
+    const res = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+    return res.ok ? ((await res.json()) as Staff) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Access token lives in memory only (React state) — never localStorage,
@@ -84,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
     });
     setAccessToken(result.accessToken);
-    setStaff(result.staff);
+    setStaff((await fetchMe(result.accessToken)) ?? result.staff);
     setStatus("authenticated");
   }, []);
 
@@ -99,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       code,
     });
     setAccessToken(result.accessToken);
-    setStaff(result.staff);
+    setStaff((await fetchMe(result.accessToken)) ?? result.staff);
     setStatus("authenticated");
   }, []);
 

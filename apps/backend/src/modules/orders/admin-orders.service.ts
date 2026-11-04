@@ -76,6 +76,8 @@ export class AdminOrdersService {
         expiresAt: p.expires_at,
         paidAt: p.paid_at,
         failureCode: p.failure_code,
+        failureMessage: p.failure_message,
+        method: p.method,
         createdAt: p.created_at,
       })),
     };

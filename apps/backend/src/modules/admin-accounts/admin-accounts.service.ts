@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { CountriesService } from '../../common/countries/countries.service';
 
 /**
  * Staff view of app accounts: find a user, see what they belong to, and
@@ -8,13 +9,19 @@ import { AppError } from '../../common/errors/app-error';
  */
 @Injectable()
 export class AdminAccountsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly countries: CountriesService,
+  ) {}
 
-  async list(opts: { q?: string; status?: 'ACTIVE' | 'SUSPENDED'; limit: number; offset: number }) {
+  async list(opts: { q?: string; status?: 'ACTIVE' | 'SUSPENDED'; country?: string; limit: number; offset: number }) {
     const q = opts.q?.trim();
     const where = {
       anonymized_at: null,
       ...(opts.status ? { status: opts.status } : { status: { not: 'DELETED' as const } }),
+      ...(opts.country && {
+        memberships_memberships_user_idTousers: { some: { organizations: { country_code: opts.country } } },
+      }),
       ...(q
         ? {
             OR: [
@@ -42,13 +49,16 @@ export class AdminAccountsService {
           memberships_memberships_user_idTousers: {
             select: {
               role: true,
-              organizations: { select: { id: true, display_name: true, kind: true } },
+              organizations: { select: { id: true, display_name: true, kind: true, country_code: true } },
             },
           },
         },
       }),
       this.prisma.users.count({ where }),
     ]);
+    const labels = await this.countries.labels(
+      rows.flatMap((u) => u.memberships_memberships_user_idTousers.map((m) => m.organizations.country_code)),
+    );
     return {
       total,
       items: rows.map((u) => ({
@@ -64,6 +74,7 @@ export class AdminAccountsService {
           name: m.organizations.display_name,
           kind: m.organizations.kind,
           role: m.role,
+          ...labels.get(m.organizations.country_code),
         })),
       })),
     };
@@ -88,9 +99,10 @@ export class AdminAccountsService {
 
     const memberships = await this.prisma.memberships.findMany({
       where: { user_id: userId },
-      include: { organizations: { select: { id: true, display_name: true, kind: true, status: true } } },
+      include: { organizations: { select: { id: true, display_name: true, kind: true, status: true, country_code: true } } },
     });
     const orgIds = memberships.map((m) => m.organization_id);
+    const labels = await this.countries.labels(memberships.map((m) => m.organizations.country_code));
 
     const [workspaces, cases, sessions] = await Promise.all([
       this.prisma.org_workspaces.findMany({ where: { organization_id: { in: orgIds } } }),
@@ -118,6 +130,7 @@ export class AdminAccountsService {
         name: m.organizations.display_name,
         kind: m.organizations.kind,
         orgStatus: m.organizations.status,
+        ...labels.get(m.organizations.country_code),
         membershipRole: m.role,
         membershipStatus: m.status,
         workspaces: workspaces

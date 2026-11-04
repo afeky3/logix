@@ -1,15 +1,19 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { OrganizationsService } from './organizations.service';
+import { countryCodeSchema } from '../../common/countries/country.schema';
 
 const createOrgSchema = z.object({
   kind: z.enum(['INDIVIDUAL', 'BUSINESS']),
   displayName: z.string().min(1).max(200),
+  countryCode: countryCodeSchema.optional(),
 });
+
+const setCountrySchema = z.object({ countryCode: countryCodeSchema });
 
 const addWorkspaceSchema = z.object({
   workspace: z.enum(['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'DRIVER']),
@@ -30,8 +34,14 @@ export class OrganizationsController {
 
   @Post()
   create(@Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
-    const { kind, displayName } = parseBody(createOrgSchema, body);
-    return this.orgs.create(user.sub, kind, displayName);
+    const { kind, displayName, countryCode } = parseBody(createOrgSchema, body);
+    return this.orgs.create(user.sub, kind, displayName, countryCode);
+  }
+
+  @Patch(':id')
+  setCountry(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
+    const { countryCode } = parseBody(setCountrySchema, body);
+    return this.orgs.setCountry(id, user.sub, countryCode);
   }
 
   @Post(':id/workspaces')

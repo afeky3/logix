@@ -50,6 +50,18 @@ export const envSchema = z.object({
   // customer issues the broker an authorization on the Fasah platform.
   FASAH_AUTHORIZATION_URL: z.string().url().default('https://www.fasah.sa'),
 
+  // Bank transfers are verified by hand, so the payment hold is hours, not the
+  // 30 minutes a card gateway needs. Read through orders/payment-hold.ts.
+  BANK_TRANSFER_HOLD_HOURS: z.coerce.number().int().positive().default(72),
+
+  // Staff permission checks (staff-permission.guard.ts). Off until a SUPER_ADMIN
+  // has been granted with scripts/grant-staff-role.ts, otherwise nobody could
+  // open the pages the guard protects.
+  STAFF_PERMISSIONS_ENFORCED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   APP_VERSION_MIN_IOS: z.string().default('1.0.0'),
   APP_VERSION_MIN_ANDROID: z.string().default('1.0.0'),
 });

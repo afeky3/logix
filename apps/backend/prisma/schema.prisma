@@ -1188,6 +1188,7 @@ model products {
   specs                Json                     @default("[]")
   origin_country_code  String                   @db.Char(2)
   condition            product_condition        @default(NEW)
+  country_code         String                   @default("SA") @db.Char(2)
   unit_code            String
   pack_size            Int?
   lead_time_days       Int                      @db.SmallInt
@@ -2030,6 +2031,7 @@ model organizations {
   status                                                                     org_status                  @default(ACTIVE)
   suspension_reason                                                          String?
   default_locale                                                             app_locale                  @default(ar)
+  country_code                                                               String                      @default("SA") @db.Char(2)
   rating_avg                                                                 Decimal?                    @db.Decimal(3, 2)
   rating_count                                                               Int                         @default(0)
   completed_jobs_count                                                       Int                         @default(0)
@@ -2946,6 +2948,7 @@ model service_requests {
   created_by_user_id                                             String                       @db.Uuid
   status                                                         request_status               @default(DRAFT)
   current_step                                                   String?
+  country_code                                                   String                       @default("SA") @db.Char(2)
   origin_city_id                                                 String?                      @db.Uuid
   destination_city_id                                            String?                      @db.Uuid
   origin_country_code                                            String?                      @db.Char(2)
@@ -4328,6 +4331,7 @@ enum payment_method {
   APPLE_PAY
   STC_PAY
   BUSINESS_FINANCE
+  BANK_TRANSFER
 
   @@schema("core")
 }

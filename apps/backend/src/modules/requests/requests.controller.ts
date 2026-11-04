@@ -4,11 +4,14 @@ import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AppTokenPayload } from '../../common/auth/jwt-payload';
+import { countryCodeSchema, countryFilterSchema } from '../../common/countries/country.schema';
 import { RequestsService } from './requests.service';
 
 const createSchema = z.object({
   serviceType: z.enum(['TRANSPORT', 'CUSTOMS', 'WAREHOUSING', 'SHIPPING']),
   organizationId: z.string().uuid(),
+  // Defaults to the account's country.
+  countryCode: countryCodeSchema.optional(),
 });
 
 const stepSchema = z.object({
@@ -41,6 +44,8 @@ const stepSchema = z.object({
 const listQuery = z.object({
   organizationId: z.string().uuid(),
   status: z.enum(['DRAFT', 'SUBMITTED', 'QUOTED', 'AWAITING_PAYMENT', 'CONVERTED', 'EXPIRED', 'CANCELLED']).optional(),
+  // Only filtered when sent: an account's own requests aren't hidden by default.
+  country: countryFilterSchema.optional(),
 });
 
 const cancelSchema = z.object({ reasonCode: z.string().optional() });
@@ -53,14 +58,14 @@ export class RequestsController {
 
   @Post()
   create(@Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
-    const { organizationId, serviceType } = parseBody(createSchema, body);
-    return this.requests.createDraft(user.sub, organizationId, serviceType);
+    const { organizationId, serviceType, countryCode } = parseBody(createSchema, body);
+    return this.requests.createDraft(user.sub, organizationId, serviceType, countryCode);
   }
 
   @Get()
   list(@Query() query: Record<string, unknown>, @CurrentUser() user: AppTokenPayload) {
-    const { organizationId, status } = parseBody(listQuery, query);
-    return this.requests.list(user.sub, organizationId, status);
+    const { organizationId, status, country } = parseBody(listQuery, query);
+    return this.requests.list(user.sub, organizationId, status, country);
   }
 
   @Get(':id')

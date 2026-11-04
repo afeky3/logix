@@ -6,10 +6,10 @@ import { AppError } from '../../common/errors/app-error';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
 import { InvoicesService } from './invoices.service';
 import { PAYOUT_BUSINESS_DAYS, addBusinessDays } from './settlement-release';
+import { bankTransferHoldMs } from './payment-hold';
 
 /** A cycle is created, and the customer reminded, this many days before it falls due. */
 export const CYCLE_REMINDER_DAYS = 5;
-const PAYMENT_HOLD_MINUTES = 30;
 
 /** Contract length chosen on the request; null = open ended, renews monthly until the customer stops it. */
 const TERM_MONTHS: Record<string, number | null> = {
@@ -207,7 +207,7 @@ export class ContractsService {
 
   private async createCycleIntent(cycleId: string, payerOrgId: string, userId: string, amount: bigint): Promise<string> {
     const id = randomUUID();
-    const expiresAt = new Date(Date.now() + PAYMENT_HOLD_MINUTES * 60 * 1000);
+    const expiresAt = new Date(Date.now() + bankTransferHoldMs());
     await this.prisma.$executeRaw`
       INSERT INTO fin.payment_intents (
         id, payable_type, contract_cycle_id, payer_org_id, payer_user_id,
@@ -216,7 +216,7 @@ export class ContractsService {
         ${id}::uuid, 'CONTRACT_CYCLE'::core.payable_type, ${cycleId}::uuid,
         ${payerOrgId}::uuid, ${userId}::uuid,
         ${amount}::core.halalas, 'SAR'::core.currency_code,
-        'CARD'::core.payment_method, 'fake', 'INITIATED'::core.payment_intent_status, ${expiresAt}::timestamptz
+        'BANK_TRANSFER'::core.payment_method, 'bank_transfer', 'INITIATED'::core.payment_intent_status, ${expiresAt}::timestamptz
       )
     `;
     return id;
@@ -235,37 +235,53 @@ export class ContractsService {
       expiresAt: i.expires_at,
       paidAt: i.paid_at,
       failureCode: i.failure_code,
+      // Added for bank transfers: why staff rejected the transfer, shown to the customer.
+      failureMessage: i.failure_message,
+      method: i.method,
     };
   }
 
-  /** What the gateway's success webhook does for a cycle payment. */
+  /** Dev/test settlement of a cycle payment (orders.service.ts simulatePayment); real ones come
+   * through admin-payments approve. */
   async settleCyclePayment(intentId: string): Promise<void> {
     const intent = await this.prisma.payment_intents.findUniqueOrThrow({ where: { id: intentId } });
     if (!intent.contract_cycle_id) return;
     const cycleId = intent.contract_cycle_id;
-    const now = new Date();
-    await this.prisma.$transaction([
-      this.prisma.payment_intents.update({
-        where: { id: intentId },
-        data: { status: 'PAID', paid_at: now, gateway_payment_id: `fake_${intentId}` },
-      }),
-      this.prisma.$executeRaw`
-        UPDATE svc.contract_cycles
-        SET status = 'PAID'::core.contract_cycle_status, paid_at = ${now}::timestamptz
-        WHERE id = ${cycleId}::uuid AND status IN ('DUE'::core.contract_cycle_status, 'OVERDUE'::core.contract_cycle_status)
-      `,
-      // Paying the overdue cycle lifts the suspension.
-      this.prisma.$executeRaw`
-        UPDATE svc.recurring_contracts
-        SET status = 'ACTIVE'::core.contract_status, suspended_at = NULL
-        WHERE status = 'SUSPENDED'::core.contract_status
-          AND id = (SELECT contract_id FROM svc.contract_cycles WHERE id = ${cycleId}::uuid)
-          AND NOT EXISTS (
-            SELECT 1 FROM svc.contract_cycles c
-            WHERE c.contract_id = svc.recurring_contracts.id AND c.status = 'OVERDUE'::core.contract_cycle_status
-          )
-      `,
-    ]);
+    await this.prisma.$transaction((tx) => this.settleCycleIntentTx(tx, intentId, cycleId, `fake_${intentId}`, new Date()));
+    await this.finishCycleSettlement(cycleId);
+  }
+
+  /** The database half of paying a cycle; runs in the caller's transaction (see orders.service.ts settleOrderIntentTx). */
+  async settleCycleIntentTx(
+    tx: Prisma.TransactionClient,
+    intentId: string,
+    cycleId: string,
+    gatewayPaymentId: string,
+    now: Date,
+  ): Promise<void> {
+    await tx.payment_intents.update({
+      where: { id: intentId },
+      data: { status: 'PAID', paid_at: now, gateway_payment_id: gatewayPaymentId },
+    });
+    await tx.$executeRaw`
+      UPDATE svc.contract_cycles
+      SET status = 'PAID'::core.contract_cycle_status, paid_at = ${now}::timestamptz
+      WHERE id = ${cycleId}::uuid AND status IN ('DUE'::core.contract_cycle_status, 'OVERDUE'::core.contract_cycle_status)
+    `;
+    // Paying the overdue cycle lifts the suspension.
+    await tx.$executeRaw`
+      UPDATE svc.recurring_contracts
+      SET status = 'ACTIVE'::core.contract_status, suspended_at = NULL
+      WHERE status = 'SUSPENDED'::core.contract_status
+        AND id = (SELECT contract_id FROM svc.contract_cycles WHERE id = ${cycleId}::uuid)
+        AND NOT EXISTS (
+          SELECT 1 FROM svc.contract_cycles c
+          WHERE c.contract_id = svc.recurring_contracts.id AND c.status = 'OVERDUE'::core.contract_cycle_status
+        )
+    `;
+  }
+
+  async finishCycleSettlement(cycleId: string): Promise<void> {
     await this.invoices.issueForCycleSafely(cycleId);
   }
 

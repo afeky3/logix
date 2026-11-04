@@ -3,7 +3,9 @@
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 import {
+  Banknote,
   Home,
   ShieldCheck,
   Building2,
@@ -16,22 +18,30 @@ import {
   Users,
 } from "lucide-react";
 
-const NAV = [
+type NavItem = { href: string; key: string; icon: typeof Home; permission?: string };
+
+const NAV: NavItem[] = [
   { href: "/", key: "home", icon: Home },
   { href: "/verification", key: "verification", icon: ShieldCheck },
   { href: "/organizations", key: "organizations", icon: Building2 },
   { href: "/requests", key: "requests", icon: ClipboardList },
   { href: "/orders", key: "orders", icon: Truck },
+  { href: "/payments", key: "payments", icon: Banknote, permission: "finance.payments.read" },
   { href: "/accounts", key: "accounts", icon: Users },
   { href: "/marketplace", key: "marketplace", icon: Store },
   { href: "/finance", key: "finance", icon: Wallet },
   { href: "/cases", key: "cases", icon: Gavel },
   { href: "/settings", key: "settings", icon: Settings },
-] as const;
+];
 
 export function Sidebar() {
   const t = useTranslations("nav");
   const pathname = usePathname();
+  const { staff } = useAuth();
+  const granted = staff?.permissions ?? [];
+  const visible = NAV.filter(
+    (item) => !item.permission || granted.includes("*") || granted.includes(item.permission),
+  );
 
   return (
     <aside className="hidden w-60 shrink-0 border-e border-border bg-card md:flex md:flex-col">
@@ -40,7 +50,7 @@ export function Sidebar() {
         <img src="/logo-badge.svg" alt="Logix" width={82} height={28} />
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 p-2">
-        {NAV.map(({ href, key, icon: Icon }) => {
+        {visible.map(({ href, key, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
             <Link

@@ -2,11 +2,14 @@ import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/co
 import { z } from 'zod';
 import { parseBody } from '../../common/http/validate';
 import { StaffAuthGuard } from '../../common/auth/staff-auth.guard';
+import { countryCodeSchema } from '../../common/countries/country.schema';
 import { AdminAccountsService } from './admin-accounts.service';
 
 const listQuery = z.object({
   q: z.string().max(100).optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
+  // Accounts that belong to an organization in this country.
+  country: countryCodeSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).default(0),
 });
