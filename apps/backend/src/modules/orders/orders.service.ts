@@ -210,11 +210,13 @@ export class OrdersService {
     return this.serializePaymentIntent(intentId);
   }
 
-  /** Dev/test stand-in for staff verification — see class doc. Closed in prod: money only
-   * moves through admin-payments approve there. */
+  /** Dev/test stand-in for staff verification — see class doc. Closed unless PAYMENT_SIMULATION_ENABLED:
+   * anyone who can reach it could confirm their own order without paying, so real money only moves
+   * through admin-payments approve. */
   async simulatePayment(userId: string, intentId: string, outcome: 'succeed' | 'fail') {
-    if (this.config.get('NODE_ENV') === 'prod') {
-      throw new AppError('FORBIDDEN', 'Payment simulation is disabled in production');
+    const enabled = this.config.get<boolean | string>('PAYMENT_SIMULATION_ENABLED');
+    if (enabled !== true && enabled !== 'true') {
+      throw new AppError('FORBIDDEN', 'Payment simulation is disabled');
     }
     const intent = await this.prisma.payment_intents.findUnique({ where: { id: intentId } });
     if (!intent) throw new AppError('NOT_FOUND', 'Payment intent not found');

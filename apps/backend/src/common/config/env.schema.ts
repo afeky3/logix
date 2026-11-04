@@ -54,6 +54,14 @@ export const envSchema = z.object({
   // 30 minutes a card gateway needs. Read through orders/payment-hold.ts.
   BANK_TRANSFER_HOLD_HOURS: z.coerce.number().int().positive().default(72),
 
+  // POST /payment-intents/:id/simulate settles an order without any money moving. Payment is a manual
+  // bank transfer now, so it must stay closed anywhere real customers pay; turn it on only in a
+  // throwaway dev/test environment. (NODE_ENV can't gate this: the live server runs NODE_ENV=dev.)
+  PAYMENT_SIMULATION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   // Staff permission checks (staff-permission.guard.ts). Off until a SUPER_ADMIN
   // has been granted with scripts/grant-staff-role.ts, otherwise nobody could
   // open the pages the guard protects.

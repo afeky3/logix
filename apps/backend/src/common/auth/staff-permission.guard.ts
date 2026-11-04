@@ -42,7 +42,8 @@ export class StaffPermissionGuard implements CanActivate {
     const allowed = await this.hasPermission(staff.sub, permission);
     if (allowed) return true;
 
-    if (!this.config.get<boolean>('STAFF_PERMISSIONS_ENFORCED')) {
+    const enforced = this.config.get<boolean | string>('STAFF_PERMISSIONS_ENFORCED');
+    if (enforced !== true && enforced !== 'true') {
       this.logger.warn(`Staff ${staff.sub} lacks ${permission}; allowed because STAFF_PERMISSIONS_ENFORCED is off`);
       return true;
     }
