@@ -17,7 +17,8 @@
     "cases": "القضايا",
     "settings": "الإعدادات",
     "accounts": "الحسابات",
-    "payments": "المدفوعات"
+    "payments": "المدفوعات",
+    "legal": "سجل الموافقات"
   },
   "login": {
     "title": "تسجيل الدخول",
@@ -438,6 +439,101 @@
       "role": "الدور",
       "status": "الحالة",
       "joinedAt": "تاريخ الانضمام"
+    },
+    "returnPolicy": {
+      "title": "سياسة الاسترجاع والاستبدال",
+      "none": "لا توجد سياسة استرجاع لهذه المنشأة.",
+      "current": "الإصدار الحالي",
+      "version": "الإصدار {v}",
+      "history": "الإصدارات السابقة",
+      "allowsReturn": "يقبل الاسترجاع",
+      "allowsExchange": "يقبل الاستبدال",
+      "window": "مدة الاسترجاع",
+      "days": "{n} يوم",
+      "noWindow": "غير محددة",
+      "yes": "نعم",
+      "no": "لا",
+      "by": "بواسطة {name}",
+      "loadFailed": "تعذّر تحميل سياسة الاسترجاع"
     }
+  },
+  "legal": {
+    "title": "سجل الموافقات",
+    "subtitle": "موافقات المستخدمين على الشروط وسياسات الاسترجاع، بالتاريخ والـ IP ورقم السجل وقت الموافقة. السجل لا يُعدَّل ولا يُحذف.",
+    "loading": "جارٍ التحميل…",
+    "empty": "لا توجد موافقات مطابقة.",
+    "loadFailed": "تعذّر تحميل السجل",
+    "forbidden": "ليس لديك صلاحية عرض سجل الموافقات.",
+    "search": "بحث",
+    "searchPlaceholder": "موبايل، اسم، منشأة، رقم طلب أو سجل",
+    "from": "من",
+    "to": "إلى",
+    "allContexts": "كل السياقات",
+    "userId": "معرّف المستخدم",
+    "organizationId": "معرّف المنشأة",
+    "quoteId": "معرّف العرض",
+    "productId": "معرّف المنتج",
+    "idPlaceholder": "UUID",
+    "clear": "مسح الفلاتر",
+    "exportCsv": "تصدير CSV",
+    "exportPdf": "طباعة / PDF",
+    "exporting": "جارٍ التصدير…",
+    "exportFailed": "تعذّر التصدير",
+    "previous": "السابق",
+    "next": "التالي",
+    "pageOf": "صفحة {page} من {pages}",
+    "total": "{n} سجل",
+    "details": "التفاصيل",
+    "close": "إغلاق",
+    "printRecord": "طباعة السجل / PDF",
+    "context": {
+      "REGISTRATION": "التسجيل",
+      "APP_LAUNCH": "فتح التطبيق",
+      "ORDER": "طلب"
+    },
+    "item": {
+      "PLATFORM_TERMS_INTERMEDIARY": "شروط المنصة كوسيط تقني وسياسة الخصوصية",
+      "NO_LIABILITY_GOODS_DISPUTES": "عدم مسؤولية المنصة عن جودة البضائع والنزاعات التجارية",
+      "VENDOR_RETURN_POLICY": "سياسة الاسترجاع والضمان الخاصة بالمورد",
+      "ESCROW_PAYMENT_TERMS": "شروط الدفع والضمان (Escrow)"
+    },
+    "identity": {
+      "CR": "سجل تجاري",
+      "NATIONAL_ID": "هوية وطنية"
+    },
+    "columns": {
+      "acceptedAt": "التاريخ والوقت",
+      "user": "المستخدم",
+      "organization": "المنشأة",
+      "context": "السياق",
+      "subject": "العرض / المنتج",
+      "termsVersion": "إصدار الشروط",
+      "identity": "السجل / الهوية"
+    },
+    "fields": {
+      "id": "رقم السجل",
+      "acceptedAt": "وقت الموافقة (ساعة السيرفر)",
+      "user": "المستخدم",
+      "phone": "الموبايل",
+      "organization": "المنشأة",
+      "context": "السياق",
+      "items": "البنود",
+      "termsVersion": "إصدار الشروط",
+      "locale": "لغة العرض",
+      "quote": "العرض (رقم الطلب)",
+      "product": "المنتج",
+      "supplier": "المورد",
+      "returnPolicyVersion": "إصدار سياسة الاسترجاع",
+      "returnPolicyText": "نص السياسة وقت الموافقة",
+      "identity": "لقطة السجل / الهوية",
+      "ip": "عنوان IP",
+      "userAgent": "User-Agent",
+      "appVersion": "إصدار التطبيق"
+    },
+    "none": "—",
+    "printTitle": "سجل الموافقات — Logix",
+    "printedAt": "تاريخ الطباعة: {at}",
+    "printNote": "مستخرج من سجل append-only. الأوقات بتوقيت UTC.",
+    "printLimit": "تُطبع أول {n} سجل من النتائج المطابقة."
   }
 }

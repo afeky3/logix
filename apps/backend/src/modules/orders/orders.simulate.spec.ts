@@ -3,7 +3,7 @@ import { OrdersService } from './orders.service';
 function setup(flag: unknown) {
   const prisma = { payment_intents: { findUnique: jest.fn() } };
   const config = { get: jest.fn((key: string) => (key === 'PAYMENT_SIMULATION_ENABLED' ? flag : undefined)) };
-  const service = new OrdersService(prisma as never, {} as never, {} as never, {} as never, {} as never, config as never);
+  const service = new OrdersService(prisma as never, {} as never, {} as never, {} as never, {} as never, config as never, {} as never);
   return { service, prisma };
 }
 

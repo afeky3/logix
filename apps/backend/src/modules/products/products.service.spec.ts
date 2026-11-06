@@ -29,7 +29,7 @@ function setup(over: { membership?: { status: string } | null; orgCountry?: stri
     },
     products: { findMany: jest.fn(async () => [row('p1', 'EG'), row('p2', 'SA')]) },
   };
-  const service = new ProductsService(prisma as never, new CountriesService(prisma as never));
+  const service = new ProductsService(prisma as never, new CountriesService(prisma as never), {} as never);
   const where = () => (prisma.products.findMany.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
   return { service, prisma, where };
 }

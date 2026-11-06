@@ -9,6 +9,8 @@ import { CountriesService } from '../../common/countries/countries.service';
 import { toBytes, bytesToUtf8 } from '../../common/util/bytes';
 import { TokenService } from './token.service';
 import { WhatsAppOtpSender } from '../../infrastructure/notifications/whatsapp-otp.sender';
+import { LegalAcceptancesService, type AcceptanceMeta } from '../legal/legal-acceptances.service';
+import { assertItems, type LegalItem } from '../legal/legal.rules';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 45 * 1000;
@@ -19,6 +21,13 @@ export interface OtpRequestResult {
   challengeId: string;
   expiresAt: Date;
   resendAvailableAt: Date;
+}
+
+/** Optional on OTP verify: recorded only when this verify creates the user. */
+export interface RegistrationConsents {
+  termsVersion: string;
+  items: LegalItem[];
+  locale: 'ar' | 'en';
 }
 
 export interface VerifyDevice {
@@ -38,6 +47,7 @@ export class AppAuthService {
     private readonly tokens: TokenService,
     private readonly whatsappOtp: WhatsAppOtpSender,
     private readonly countries: CountriesService,
+    private readonly legal: LegalAcceptancesService,
   ) {}
 
   /** Best-effort E.164 normalization. Phone format is intentionally
@@ -128,7 +138,14 @@ export class AppAuthService {
     return { challengeId: challenge.id, expiresAt, resendAvailableAt };
   }
 
-  async verifyOtp(challengeId: string, code: string, device: VerifyDevice, ip?: string) {
+  async verifyOtp(
+    challengeId: string,
+    code: string,
+    device: VerifyDevice,
+    ip?: string,
+    consents?: RegistrationConsents,
+    meta?: AcceptanceMeta,
+  ) {
     const challenge = await this.prisma.otp_challenges.findUnique({ where: { id: challengeId } });
     if (!challenge) throw new AppError('VALIDATION_FAILED', 'Unknown verification challenge');
     if (challenge.verified_at) {
@@ -154,16 +171,32 @@ export class AppAuthService {
       throw new AppError('OTP_INVALID', 'Incorrect code');
     }
 
+    let user = await this.prisma.users.findUnique({ where: { phone_e164: challenge.phone_e164 } });
+    const isNewUser = !user;
+    // Checked before the code is spent, so the app can fix the items and verify again.
+    // An existing user's consents are ignored (they accept at launch instead).
+    if (isNewUser && consents) assertItems({ context: 'REGISTRATION', items: consents.items });
+
     await this.prisma.otp_challenges.update({
       where: { id: challengeId },
       data: { verified_at: new Date() },
     });
 
-    let user = await this.prisma.users.findUnique({ where: { phone_e164: challenge.phone_e164 } });
-    const isNewUser = !user;
     if (!user) {
-      user = await this.prisma.users.create({
-        data: { id: randomUUID(), phone_e164: challenge.phone_e164 },
+      // The account and its registration acceptance are written together: no account
+      // exists without the acceptance when the app sent one.
+      user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.users.create({
+          data: { id: randomUUID(), phone_e164: challenge.phone_e164 },
+        });
+        if (consents) {
+          await this.legal.recordRegistration(tx, created.id, consents, {
+            ip: meta?.ip ?? ip ?? null,
+            userAgent: meta?.userAgent ?? null,
+            appVersion: meta?.appVersion ?? device.appVersion ?? null,
+          });
+        }
+        return created;
       });
     } else {
       await this.prisma.users.update({

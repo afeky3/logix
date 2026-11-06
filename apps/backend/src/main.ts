@@ -11,7 +11,9 @@ import { AppErrorFilter } from './common/errors/app-error.filter';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: true }),
+    // Only nginx on this host may set X-Forwarded-For: `true` believed any client's header, so
+    // req.ip (recorded with audit entries and legal acceptances) could be forged.
+    new FastifyAdapter({ trustProxy: 'loopback' }),
     { bufferLogs: true },
   );
 

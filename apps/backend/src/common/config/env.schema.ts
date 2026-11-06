@@ -65,6 +65,11 @@ export const envSchema = z.object({
   // Staff permission checks (staff-permission.guard.ts). Off until a SUPER_ADMIN
   // has been granted with scripts/grant-staff-role.ts, otherwise nobody could
   // open the pages the guard protects.
+  // POST /quotes/:id/accept needs an ORDER legal acceptance for the quote (422 CONSENT_REQUIRED).
+  CONSENT_REQUIRED_ON_QUOTE_ACCEPT: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   STAFF_PERMISSIONS_ENFORCED: z
     .enum(['true', 'false'])
     .default('false')

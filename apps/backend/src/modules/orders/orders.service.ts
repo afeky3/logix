@@ -1,3 +1,4 @@
+import { LegalAcceptancesService } from '../legal/legal-acceptances.service';
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -63,6 +64,7 @@ export class OrdersService {
     private readonly invoices: InvoicesService,
     private readonly contracts: ContractsService,
     private readonly config: ConfigService,
+    private readonly legal: LegalAcceptancesService,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -116,6 +118,10 @@ export class OrdersService {
         paymentIntent: intent ? await this.serializePaymentIntent(intent.id) : null,
       };
     }
+
+    // A new order needs the user's ORDER acceptance for this quote (the retry branch above
+    // reuses an order that was already accepted).
+    await this.legal.assertQuoteConsent(userId, quoteId);
 
     if (quote.status !== 'SUBMITTED') {
       throw new AppError('QUOTE_EXPIRED', 'This quote is no longer available');

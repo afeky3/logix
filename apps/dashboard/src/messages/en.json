@@ -17,7 +17,8 @@
     "cases": "Cases",
     "settings": "Settings",
     "accounts": "Accounts",
-    "payments": "Payments"
+    "payments": "Payments",
+    "legal": "Consent log"
   },
   "login": {
     "title": "Sign in",
@@ -438,6 +439,101 @@
       "role": "Role",
       "status": "Status",
       "joinedAt": "Joined"
+    },
+    "returnPolicy": {
+      "title": "Return & exchange policy",
+      "none": "This organization has no return policy.",
+      "current": "Current version",
+      "version": "Version {v}",
+      "history": "Earlier versions",
+      "allowsReturn": "Returns accepted",
+      "allowsExchange": "Exchanges accepted",
+      "window": "Return window",
+      "days": "{n} days",
+      "noWindow": "Not set",
+      "yes": "Yes",
+      "no": "No",
+      "by": "by {name}",
+      "loadFailed": "Could not load the return policy"
     }
+  },
+  "legal": {
+    "title": "Consent log",
+    "subtitle": "Users' acceptances of the terms and of suppliers' return policies, with time, IP and the CR number at the moment of acceptance. Records are never edited or deleted.",
+    "loading": "Loading…",
+    "empty": "No matching acceptances.",
+    "loadFailed": "Could not load the log",
+    "forbidden": "You don't have permission to view the consent log.",
+    "search": "Search",
+    "searchPlaceholder": "Phone, name, organization, request no. or CR",
+    "from": "From",
+    "to": "To",
+    "allContexts": "All contexts",
+    "userId": "User ID",
+    "organizationId": "Organization ID",
+    "quoteId": "Quote ID",
+    "productId": "Product ID",
+    "idPlaceholder": "UUID",
+    "clear": "Clear filters",
+    "exportCsv": "Export CSV",
+    "exportPdf": "Print / PDF",
+    "exporting": "Exporting…",
+    "exportFailed": "Export failed",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {pages}",
+    "total": "{n} records",
+    "details": "Details",
+    "close": "Close",
+    "printRecord": "Print record / PDF",
+    "context": {
+      "REGISTRATION": "Registration",
+      "APP_LAUNCH": "App launch",
+      "ORDER": "Order"
+    },
+    "item": {
+      "PLATFORM_TERMS_INTERMEDIARY": "Platform terms as a technical intermediary + privacy policy",
+      "NO_LIABILITY_GOODS_DISPUTES": "Platform not liable for goods quality or direct trade disputes",
+      "VENDOR_RETURN_POLICY": "Supplier's return and warranty policy",
+      "ESCROW_PAYMENT_TERMS": "Payment and escrow terms"
+    },
+    "identity": {
+      "CR": "CR",
+      "NATIONAL_ID": "National ID"
+    },
+    "columns": {
+      "acceptedAt": "Date & time",
+      "user": "User",
+      "organization": "Organization",
+      "context": "Context",
+      "subject": "Quote / product",
+      "termsVersion": "Terms version",
+      "identity": "CR / ID"
+    },
+    "fields": {
+      "id": "Record ID",
+      "acceptedAt": "Accepted at (server clock)",
+      "user": "User",
+      "phone": "Phone",
+      "organization": "Organization",
+      "context": "Context",
+      "items": "Items",
+      "termsVersion": "Terms version",
+      "locale": "Display language",
+      "quote": "Quote (request no.)",
+      "product": "Product",
+      "supplier": "Supplier",
+      "returnPolicyVersion": "Return policy version",
+      "returnPolicyText": "Policy text at acceptance",
+      "identity": "CR / ID snapshot",
+      "ip": "IP address",
+      "userAgent": "User-Agent",
+      "appVersion": "App version"
+    },
+    "none": "—",
+    "printTitle": "Consent log — Logix",
+    "printedAt": "Printed: {at}",
+    "printNote": "Extracted from an append-only log. Times are UTC.",
+    "printLimit": "Printing the first {n} matching records."
   }
 }

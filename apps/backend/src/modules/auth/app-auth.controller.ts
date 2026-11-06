@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { AppAuthService } from './app-auth.service';
+import { acceptanceMeta, itemsSchema, termsVersionSchema } from '../legal/legal.http';
 
 const otpRequestSchema = z.object({
   phone: z.string().min(6),
@@ -25,6 +26,10 @@ const otpVerifySchema = z.object({
   challengeId: z.string().uuid(),
   code: z.string().length(6),
   device: deviceSchema,
+  // Registration acceptance, recorded only when this verify creates the account.
+  consents: z
+    .object({ termsVersion: termsVersionSchema, items: itemsSchema, locale: z.enum(['ar', 'en']) })
+    .nullish(),
 });
 
 const refreshSchema = z.object({ refreshToken: z.string().min(10) });
@@ -65,8 +70,8 @@ export class AppAuthController {
 
   @Post('otp/verify')
   async verifyOtp(@Body() body: unknown, @Req() req: FastifyRequest) {
-    const { challengeId, code, device } = parseBody(otpVerifySchema, body);
-    return this.auth.verifyOtp(challengeId, code, device, req.ip);
+    const { challengeId, code, device, consents } = parseBody(otpVerifySchema, body);
+    return this.auth.verifyOtp(challengeId, code, device, req.ip, consents ?? undefined, acceptanceMeta(req));
   }
 
   @Post('password/login')

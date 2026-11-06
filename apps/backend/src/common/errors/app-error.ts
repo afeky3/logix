@@ -23,6 +23,8 @@ export type AppErrorCode =
   | 'OTP_EXPIRED'
   | 'OTP_INVALID'
   | 'ACCOUNT_SUSPENDED'
+  | 'CONSENT_REQUIRED'
+  | 'RETURN_POLICY_OUTDATED'
   | 'UNKNOWN';
 
 export interface AppErrorDetail {
@@ -51,6 +53,8 @@ const STATUS_BY_CODE: Record<AppErrorCode, number> = {
   OTP_EXPIRED: 409,
   OTP_INVALID: 400,
   ACCOUNT_SUSPENDED: 403,
+  CONSENT_REQUIRED: 422,
+  RETURN_POLICY_OUTDATED: 422,
   UNKNOWN: 500,
 };
 
@@ -64,11 +68,13 @@ export class AppError extends Error {
   constructor(
     code: AppErrorCode,
     message: string,
-    options?: { details?: AppErrorDetail[]; retryable?: boolean },
+    options?: { details?: AppErrorDetail[]; retryable?: boolean; httpStatus?: number },
   ) {
     super(message);
     this.code = code;
-    this.httpStatus = STATUS_BY_CODE[code];
+    // `httpStatus` overrides the code's usual status where a contract asks for it
+    // (e.g. legal acceptances answer missing items with 422 VALIDATION_FAILED).
+    this.httpStatus = options?.httpStatus ?? STATUS_BY_CODE[code];
     this.details = options?.details;
     this.retryable = options?.retryable ?? code === 'UPSTREAM_UNAVAILABLE';
   }

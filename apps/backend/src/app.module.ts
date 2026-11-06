@@ -26,6 +26,7 @@ import { AdminMarketplaceModule } from './modules/admin-marketplace/admin-market
 import { MessagesModule } from './modules/messages/messages.module';
 import { AdminPaymentsModule } from './modules/admin-payments/admin-payments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { LegalModule } from './modules/legal/legal.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     MessagesModule,
     NotificationsModule,
     AdminPaymentsModule,
+    LegalModule,
   ],
 })
 export class AppModule {}

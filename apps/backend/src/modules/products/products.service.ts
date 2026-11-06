@@ -1,3 +1,4 @@
+import { ReturnPoliciesService } from '../legal/return-policies.service';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
@@ -9,6 +10,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly countries: CountriesService,
+    private readonly policies: ReturnPoliciesService,
   ) {}
 
   async list(
@@ -82,6 +84,8 @@ export class ProductsService {
       originCountryEn: p.countries?.name_en ?? null,
       specs: p.specs,
       imageFileIds: p.product_images.map((i) => i.file_id),
+      // The supplier's policy in force; its `version` goes back in the ORDER acceptance.
+      returnPolicy: await this.policies.get(p.supplier_org_id),
     };
   }
 

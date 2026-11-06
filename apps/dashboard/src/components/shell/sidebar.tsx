@@ -16,6 +16,7 @@ import {
   Gavel,
   Settings,
   Users,
+  ScrollText,
 } from "lucide-react";
 
 type NavItem = { href: string; key: string; icon: typeof Home; permission?: string };
@@ -27,6 +28,7 @@ const NAV: NavItem[] = [
   { href: "/requests", key: "requests", icon: ClipboardList },
   { href: "/orders", key: "orders", icon: Truck },
   { href: "/payments", key: "payments", icon: Banknote, permission: "finance.payments.read" },
+  { href: "/legal", key: "legal", icon: ScrollText, permission: "legal.acceptances.read" },
   { href: "/accounts", key: "accounts", icon: Users },
   { href: "/marketplace", key: "marketplace", icon: Store },
   { href: "/finance", key: "finance", icon: Wallet },

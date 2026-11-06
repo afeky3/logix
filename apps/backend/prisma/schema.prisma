@@ -4898,3 +4898,54 @@ model contract_cycles {
   @@unique([contract_id, cycle_no])
   @@schema("svc")
 }
+
+/// migrations/032 — append-only (trigger). FKs live in the database; no relation fields so the
+/// generated models stay small.
+model legal_acceptances {
+  id                       String   @id @db.Uuid
+  user_id                  String   @db.Uuid
+  organization_id          String?  @db.Uuid
+  context                  String
+  items                    String[]
+  terms_version            String
+  locale                   String
+  quote_id                 String?  @db.Uuid
+  product_id               String?  @db.Uuid
+  supplier_org_id          String?  @db.Uuid
+  return_policy_version_id String?  @db.Uuid
+  return_policy_version    String?
+  identity_number          String?
+  identity_type            String?
+  ip                       String?
+  user_agent               String?
+  app_version              String?
+  accepted_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id, context, accepted_at(sort: Desc)], map: "ix_legal_user_context")
+  @@schema("org")
+}
+
+/// migrations/032 — append-only (trigger): every PUT adds a version.
+model return_policy_versions {
+  id                 String   @id @db.Uuid
+  organization_id    String   @db.Uuid
+  version            Int
+  text               String
+  return_window_days Int?
+  allows_return      Boolean
+  allows_exchange    Boolean
+  created_by_user_id String   @db.Uuid
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([organization_id, version], map: "ux_return_policy_version")
+  @@schema("mkt")
+}
+
+/// migrations/032 — the version in force for each supplier.
+model return_policies {
+  organization_id    String   @id @db.Uuid
+  current_version_id String   @db.Uuid
+  updated_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("mkt")
+}
