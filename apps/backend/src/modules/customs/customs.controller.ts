@@ -10,7 +10,9 @@ const detailsSchema = z.object({
   movement: z.enum(['IMPORT', 'EXPORT', 'TRANSIT']),
   portType: z.enum(['SEA', 'AIR', 'LAND']),
   billOfLadingNo: z.string().max(100).optional(),
-  hsCode: z.string().max(20).optional(),
+  // Same rule as the database (customs_request_details_hs_code_check): a code it would refuse is a 400
+  // here, not a 500 from the constraint. Mirrors shipping.controller.ts.
+  hsCode: z.string().regex(/^[0-9]{6,12}$/, 'HS code must be 6 to 12 digits').optional(),
   goodsDescription: z.string().max(1000).optional(),
 });
 

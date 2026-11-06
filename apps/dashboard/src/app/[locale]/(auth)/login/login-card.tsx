@@ -39,10 +39,10 @@ export function LoginCard() {
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-background p-6">
-      <div className="w-full max-w-sm overflow-hidden rounded-[--radius] border border-border bg-card shadow-sm">
+      <div className="w-full max-w-sm overflow-hidden rounded-(--radius) border border-border bg-card shadow-sm">
         {/* Navy hero header, same treatment as the app's A01 welcome screen
             (logic-app/lib/features/onboarding/ui/widgets/welcome_hero.dart). */}
-        <div className="flex flex-col items-center gap-3 bg-[--navy] px-6 py-8 text-center">
+        <div className="flex flex-col items-center gap-3 bg-(--navy) px-6 py-8 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- static brand SVG */}
           <img src="/logo-full.svg" alt="Logix" className="h-8 w-auto" />
           <div>

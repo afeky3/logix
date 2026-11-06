@@ -232,7 +232,7 @@ export function PaymentsClient() {
       </div>
 
       {notice && (
-        <p role="status" className="rounded-md border border-[--success] bg-[--success-bg] px-3 py-2 text-sm text-[--success]">
+        <p role="status" className="rounded-md border border-(--success) bg-(--success-bg) px-3 py-2 text-sm text-(--success)">
           {notice}
         </p>
       )}
@@ -376,7 +376,7 @@ export function PaymentsClient() {
               </p>
             )}
             {dialog.kind === "approve" && dialog.row.verificationStatus === "EXPIRED" && (
-              <p className="mt-2 text-sm text-[--warning]">{t("lateNote")}</p>
+              <p className="mt-2 text-sm text-(--warning)">{t("lateNote")}</p>
             )}
             {dialog.kind === "reject" && (
               <div className="mt-3">

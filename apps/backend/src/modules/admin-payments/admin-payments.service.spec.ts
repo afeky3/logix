@@ -41,10 +41,14 @@ function setup(initial: Record<string, unknown> = {}) {
   const audit: Record<string, unknown>[] = [];
   const notes: Record<string, unknown>[] = [];
 
-  const db = {
+  // Typed loosely on purpose: `$transaction` hands the fake itself to the callback, which TypeScript
+  // can't infer for an object that refers to itself.
+  const db: Record<string, unknown> & {
+    payment_intents: { count: jest.Mock; update: jest.Mock };
+  } = {
     // A copy per query, like the database: later updates must not rewrite what was already read.
     $queryRaw: jest.fn(async () => [{ ...state.row }]),
-    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown): Promise<unknown> => fn(db)),
     payment_intents: {
       count: jest.fn(async () => state.otherIntents),
       update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {

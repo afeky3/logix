@@ -159,44 +159,67 @@ export class AdminKybService {
     });
     if (!item) throw new AppError('NOT_FOUND', 'Verification item not found');
 
-    const updated = await this.prisma.verification_items.update({
-      where: { id: itemId },
-      data: { status, reason_note: reasonNote, decided_by_staff_id: staffId, decided_at: new Date() },
-    });
-
-    // Reflect the per-item decision onto the underlying record so the user
-    // sees it on their own license/bank-account list, not just the case.
-    if (item.item_type === 'LICENSE') {
-      await this.prisma.licenses.update({
-        where: { id: item.ref_id },
-        data: {
-          status: status === 'ACCEPTED' ? 'VALID' : status === 'REJECTED' ? 'REJECTED' : 'CHANGES_REQUESTED',
-        },
-      });
-    } else if (item.item_type === 'BANK_ACCOUNT') {
-      await this.prisma.bank_accounts.update({
-        where: { id: item.ref_id },
-        data: {
-          status: status === 'ACCEPTED' ? 'VERIFIED' : status === 'REJECTED' ? 'REJECTED' : 'PENDING',
-          verified_at: status === 'ACCEPTED' ? new Date() : undefined,
-        },
-      });
-    } else if (item.item_type === 'BUSINESS_PROFILE') {
-      await this.prisma.business_profiles.update({
+    // ux_business_cr_approved: one approved profile per CR number. Checked up front so a duplicate is a
+    // clear 422 instead of a unique-violation 500 that left the item ACCEPTED and the profile unapproved.
+    if (item.item_type === 'BUSINESS_PROFILE' && status === 'ACCEPTED') {
+      const profile = await this.prisma.business_profiles.findUnique({
         where: { organization_id: item.ref_id },
-        data: {
-          verification_status:
-            status === 'ACCEPTED' ? 'APPROVED' : status === 'REJECTED' ? 'REJECTED' : 'CHANGES_REQUESTED',
-        },
+        select: { cr_number: true },
       });
+      const clash =
+        profile &&
+        (await this.prisma.business_profiles.findFirst({
+          where: { cr_number: profile.cr_number, verification_status: 'APPROVED', organization_id: { not: item.ref_id } },
+          select: { organization_id: true },
+        }));
+      if (clash) {
+        throw new AppError('BUSINESS_RULE_VIOLATION', 'This CR number is already verified for another organization', {
+          details: [{ field: 'crNumber', code: 'already_verified' }],
+        });
+      }
     }
 
-    return {
-      id: updated.id,
-      status: updated.status,
-      reasonNote: updated.reason_note,
-      decidedAt: updated.decided_at,
-    };
+    // The item and the record it stands for change together, or not at all.
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.verification_items.update({
+        where: { id: itemId },
+        data: { status, reason_note: reasonNote, decided_by_staff_id: staffId, decided_at: new Date() },
+      });
+
+      // Reflect the per-item decision onto the underlying record so the user
+      // sees it on their own license/bank-account list, not just the case.
+      if (item.item_type === 'LICENSE') {
+        await tx.licenses.update({
+          where: { id: item.ref_id },
+          data: {
+            status: status === 'ACCEPTED' ? 'VALID' : status === 'REJECTED' ? 'REJECTED' : 'CHANGES_REQUESTED',
+          },
+        });
+      } else if (item.item_type === 'BANK_ACCOUNT') {
+        await tx.bank_accounts.update({
+          where: { id: item.ref_id },
+          data: {
+            status: status === 'ACCEPTED' ? 'VERIFIED' : status === 'REJECTED' ? 'REJECTED' : 'PENDING',
+            verified_at: status === 'ACCEPTED' ? new Date() : undefined,
+          },
+        });
+      } else if (item.item_type === 'BUSINESS_PROFILE') {
+        await tx.business_profiles.update({
+          where: { organization_id: item.ref_id },
+          data: {
+            verification_status:
+              status === 'ACCEPTED' ? 'APPROVED' : status === 'REJECTED' ? 'REJECTED' : 'CHANGES_REQUESTED',
+          },
+        });
+      }
+
+      return {
+        id: updated.id,
+        status: updated.status,
+        reasonNote: updated.reason_note,
+        decidedAt: updated.decided_at,
+      };
+    });
   }
 
   /** Final case decision. APPROVED activates the workspace — "Approval
