@@ -70,6 +70,11 @@ export const envSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
 
+  // Comma-separated browser origins allowed by CORS (read in main.ts).
+  CORS_ORIGINS: z
+    .string()
+    .default('https://logix-co.com,https://admin.logix-co.com,https://logix.bemocode.com'),
+
   APP_VERSION_MIN_IOS: z.string().default('1.0.0'),
   APP_VERSION_MIN_ANDROID: z.string().default('1.0.0'),
 });

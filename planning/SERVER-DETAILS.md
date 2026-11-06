@@ -230,8 +230,8 @@ htop
 |------|--------|
 | **Code** | `/home/ubuntu/logix` — `git clone https://github.com/afeky3/logix.git`, `apps/backend` (NestJS 11 + Fastify + Prisma) |
 | **Port** | 3001 (127.0.0.1 only — not exposed directly, see Nginx below) |
-| **Public access** | `https://16.16.187.248/api/...` and `/health/...` (proxied). No dedicated domain yet — TBD (`api.bemocode.com` or `logix-api.bemocode.com`), needs its own DNS + certbot cert once chosen |
-| **Reverse Proxy** | Nginx, `location /api/`, `/health/`, `/socket.io` blocks added to `/etc/nginx/sites-available/logix-ip` (proxy to `127.0.0.1:3001`) |
+| **Public access** | **Primary: `https://api.logix-co.com/api/v1/...`** and `/health/...`. Legacy names still served: `https://logix-api.bemocode.com`, `https://16.16.187.248` (cert mismatch), `http://16.16.187.248` (plain HTTP for dev builds) |
+| **Reverse Proxy** | Nginx `/etc/nginx/sites-available/logix-co.com` (primary, see "Logix domains" below). Legacy: `logix-api.bemocode.com`, `logix-ip`, `logix-api-http`, `logix-dashboard` (`:8443`) |
 | **Database** | `logix` on PostgreSQL 18.6, 157 tables across 17 schemas — see "Logix Database" below. Full schema applied from `apps/backend/migrations/001_init.sql` |
 | **Cache** | Existing Redis 8, DB index 1, `logix:` key prefix (configured, not yet used — no queues registered) |
 | **Processes (PM2)** | `logix-api` (`dist/main.js`) and `logix-worker` (`dist/worker.js`, idle — no queues yet), via `apps/backend/ecosystem.config.js`. `pm2 save` done, `pm2-logrotate` installed |
@@ -250,7 +250,22 @@ pm2 restart logix-api logix-worker
 ### Still open
 
 - No swap file yet (queued from §"Needed before the first deploy" below — do before S2).
-- No dedicated API domain/cert — currently IP + self-signed-looking cert mismatch (browsers warn, curl needs `-k`).
+
+### Logix domains (since 2026-11-06)
+
+Domain `logix-co.com`, DNS at Hostinger. A records `@`, `api`, `admin` → `16.16.187.248` (TTL 300); `www` is a CNAME to `@`. **No Elastic IP**: a Stop/Start of the instance changes the public IP (a Reboot does not), and then these three A records must be updated in Hostinger.
+
+| Name | Serves |
+|------|--------|
+| `api.logix-co.com` | Backend `127.0.0.1:3001` (`/api/`, `/health/`, `/socket.io`; anything else 404) |
+| `admin.logix-co.com` | Dashboard `127.0.0.1:3002` |
+| `logix-co.com` | Dashboard `127.0.0.1:3002` — public pages (e.g. `/ar/delete-account`) |
+| `www.logix-co.com` | 301 → `logix-co.com` |
+
+- Nginx: `/etc/nginx/sites-available/logix-co.com` (symlinked in `sites-enabled`). Backup of `/etc/nginx` before the change: `/home/ubuntu/nginx-backup-20261106-124326`.
+- TLS: one Let's Encrypt cert `logix-co.com` covering all four names, webroot `/var/www/html`, auto-renewed by the certbot timer; `renew_hook = systemctl reload nginx` in `/etc/letsencrypt/renewal/logix-co.com.conf`.
+- Backend CORS allows `CORS_ORIGINS` (default `https://logix-co.com,https://admin.logix-co.com,https://logix.bemocode.com`), plus localhost outside prod.
+- Mobile app `BASE_URL` = `https://api.logix-co.com/api/v1/` (logic-app `env/*.json`, `app_config.dart`).
 - `logix-worker` has no queues registered yet (added per module as BullMQ jobs are built).
 
 > **Scope of this server.** eu-north-1 is outside Saudi Arabia, so under decision D-23 (PDPL data residency) this box is suitable for **dev/staging with synthetic data only**. Production hosting stays open until legal sign-off.

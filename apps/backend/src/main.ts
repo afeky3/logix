@@ -26,16 +26,34 @@ async function bootstrap(): Promise<void> {
 
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new AppErrorFilter());
-  // TODO(prod): restrict to known origins once the app/dashboard domains
-  // are final. Wide open for now — dev/test only, no cookies/credentials
-  // are sent cross-origin by the app (Bearer tokens in headers instead).
+  // Browsers may call the API only from Logix's own sites (CORS_ORIGINS):
+  // the Flutter web build and the logix-co.com pages. The dashboard proxies
+  // through its own server, and native apps don't send an Origin at all, so
+  // neither depends on this list. Outside prod, localhost on any port is
+  // allowed too, for `flutter run -d chrome`.
   //
   // `methods` matters: @fastify/cors defaults to GET,HEAD,POST only, so
   // every PUT/PATCH/DELETE endpoint (business-profile, addresses, /me, ...)
   // was silently failing CORS preflight from any browser client — caught
   // live wiring the app's business-profile screen, which showed as a
   // generic "no internet" error with no server-side trace at all.
-  app.enableCors({ origin: true, methods: 'GET,HEAD,POST,PUT,PATCH,DELETE' });
+  const allowedOrigins = new Set(
+    (process.env.CORS_ORIGINS ?? 'https://logix-co.com,https://admin.logix-co.com,https://logix.bemocode.com')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
+  );
+  const allowLocalhost = process.env.NODE_ENV !== 'prod';
+  app.enableCors({
+    origin: (origin, cb) => {
+      const ok =
+        !origin ||
+        allowedOrigins.has(origin) ||
+        (allowLocalhost && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin));
+      cb(null, ok);
+    },
+    methods: 'GET,HEAD,POST,PUT,PATCH,DELETE',
+  });
   app.setGlobalPrefix('api/v1', {
     exclude: [{ path: 'health/live', method: RequestMethod.GET }, { path: 'health/ready', method: RequestMethod.GET }],
   });
