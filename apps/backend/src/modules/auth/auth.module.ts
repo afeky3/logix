@@ -6,6 +6,7 @@ import { MeController } from './me.controller';
 import { StaffAuthController, AdminMeController } from './staff-auth.controller';
 import { StaffAuthService } from './staff-auth.service';
 import { TokenService } from './token.service';
+import { FirebasePhoneVerifier } from './firebase-phone.verifier';
 import { WhatsAppOtpSender } from '../../infrastructure/notifications/whatsapp-otp.sender';
 
 @Module({
@@ -17,6 +18,6 @@ import { WhatsAppOtpSender } from '../../infrastructure/notifications/whatsapp-o
     AdminMeController,
     DevicesController,
   ],
-  providers: [AppAuthService, StaffAuthService, TokenService, WhatsAppOtpSender],
+  providers: [AppAuthService, StaffAuthService, TokenService, WhatsAppOtpSender, FirebasePhoneVerifier],
 })
 export class AuthModule {}

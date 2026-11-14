@@ -34,6 +34,10 @@ export const envSchema = z.object({
   EVOLUTION_API_KEY: z.string().optional(),
   EVOLUTION_INSTANCE: z.string().optional(),
 
+  // Firebase Phone Auth: the app proves a phone with Firebase and sends us the signed ID token
+  // (POST /auth/firebase/verify). Only the project id is needed to check it, no secret.
+  FIREBASE_PROJECT_ID: z.string().min(1).optional(),
+
   STAFF_MFA_ISSUER: z.string().default('Logix'),
 
   // AES-256-GCM key (32 bytes, base64) for at-rest encryption of IBANs.

@@ -32,6 +32,17 @@ const otpVerifySchema = z.object({
     .nullish(),
 });
 
+/** Firebase Phone Auth: the ID token the app got after the SMS code (proves the phone). */
+const firebaseTokenSchema = z.string().min(100).max(8192);
+
+const firebaseVerifySchema = z.object({
+  idToken: firebaseTokenSchema,
+  device: deviceSchema,
+  consents: z
+    .object({ termsVersion: termsVersionSchema, items: itemsSchema, locale: z.enum(['ar', 'en']) })
+    .nullish(),
+});
+
 const refreshSchema = z.object({ refreshToken: z.string().min(10) });
 
 /** At least 8 characters, with both a letter and a digit. */
@@ -55,6 +66,13 @@ const passwordSetSchema = z.object({
   email: z.string().email().max(254).optional(),
 });
 
+/** Password set/reset with the phone proven by Firebase instead of one of our OTP challenges. */
+const passwordSetFirebaseSchema = z.object({
+  firebaseIdToken: firebaseTokenSchema,
+  password: passwordSchema,
+  email: z.string().email().max(254).optional(),
+});
+
 const pushTokenSchema = z.object({ pushToken: z.string().min(1) });
 
 /** App auth — backend/md/modules/01-auth-identity.md. */
@@ -72,6 +90,12 @@ export class AppAuthController {
   async verifyOtp(@Body() body: unknown, @Req() req: FastifyRequest) {
     const { challengeId, code, device, consents } = parseBody(otpVerifySchema, body);
     return this.auth.verifyOtp(challengeId, code, device, req.ip, consents ?? undefined, acceptanceMeta(req));
+  }
+
+  @Post('firebase/verify')
+  async verifyFirebase(@Body() body: unknown, @Req() req: FastifyRequest) {
+    const { idToken, device, consents } = parseBody(firebaseVerifySchema, body);
+    return this.auth.verifyFirebase(idToken, device, req.ip, consents ?? undefined, acceptanceMeta(req));
   }
 
   @Post('password/login')
@@ -92,6 +116,10 @@ export class AppAuthController {
 
   @Post('password/set')
   async setPassword(@Body() body: unknown) {
+    if (typeof body === 'object' && body !== null && 'firebaseIdToken' in body) {
+      const { firebaseIdToken, password, email } = parseBody(passwordSetFirebaseSchema, body);
+      return this.auth.setPasswordWithFirebase(firebaseIdToken, password, email);
+    }
     const { challengeId, code, password, email } = parseBody(passwordSetSchema, body);
     return this.auth.setPassword(challengeId, code, password, email);
   }

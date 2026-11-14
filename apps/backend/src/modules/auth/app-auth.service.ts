@@ -11,6 +11,7 @@ import { TokenService } from './token.service';
 import { WhatsAppOtpSender } from '../../infrastructure/notifications/whatsapp-otp.sender';
 import { LegalAcceptancesService, type AcceptanceMeta } from '../legal/legal-acceptances.service';
 import { assertItems, type LegalItem } from '../legal/legal.rules';
+import { FirebasePhoneVerifier } from './firebase-phone.verifier';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 45 * 1000;
@@ -48,6 +49,7 @@ export class AppAuthService {
     private readonly whatsappOtp: WhatsAppOtpSender,
     private readonly countries: CountriesService,
     private readonly legal: LegalAcceptancesService,
+    private readonly firebase: FirebasePhoneVerifier,
   ) {}
 
   /** Best-effort E.164 normalization. Phone format is intentionally
@@ -171,23 +173,52 @@ export class AppAuthService {
       throw new AppError('OTP_INVALID', 'Incorrect code');
     }
 
-    let user = await this.prisma.users.findUnique({ where: { phone_e164: challenge.phone_e164 } });
-    const isNewUser = !user;
+    const existing = await this.prisma.users.findUnique({ where: { phone_e164: challenge.phone_e164 } });
     // Checked before the code is spent, so the app can fix the items and verify again.
     // An existing user's consents are ignored (they accept at launch instead).
-    if (isNewUser && consents) assertItems({ context: 'REGISTRATION', items: consents.items });
+    if (!existing && consents) assertItems({ context: 'REGISTRATION', items: consents.items });
 
     await this.prisma.otp_challenges.update({
       where: { id: challengeId },
       data: { verified_at: new Date() },
     });
 
+    return this.completeSignIn(existing, challenge.phone_e164, device, ip, consents, meta);
+  }
+
+  /** Sign in (or register) with a Firebase Phone Auth ID token: Firebase sent and checked the
+   * SMS code, so the signed token is the proof of the phone. Same outcome as [verifyOtp]. */
+  async verifyFirebase(
+    idToken: string,
+    device: VerifyDevice,
+    ip?: string,
+    consents?: RegistrationConsents,
+    meta?: AcceptanceMeta,
+  ) {
+    const { phoneE164 } = await this.firebase.verify(idToken);
+    const existing = await this.prisma.users.findUnique({ where: { phone_e164: phoneE164 } });
+    if (!existing && consents) assertItems({ context: 'REGISTRATION', items: consents.items });
+    return this.completeSignIn(existing, phoneE164, device, ip, consents, meta);
+  }
+
+  /** Shared by both proofs of a phone: create the account (with its registration acceptance, in
+   * one transaction) or record the login, then open the session. */
+  private async completeSignIn(
+    existing: { id: string; phone_e164: string; full_name: string | null; locale: string; status: string } | null,
+    phoneE164: string,
+    device: VerifyDevice,
+    ip: string | undefined,
+    consents: RegistrationConsents | undefined,
+    meta: AcceptanceMeta | undefined,
+  ) {
+    let user = existing;
+    const isNewUser = !user;
     if (!user) {
       // The account and its registration acceptance are written together: no account
       // exists without the acceptance when the app sent one.
       user = await this.prisma.$transaction(async (tx) => {
         const created = await tx.users.create({
-          data: { id: randomUUID(), phone_e164: challenge.phone_e164 },
+          data: { id: randomUUID(), phone_e164: phoneE164 },
         });
         if (consents) {
           await this.legal.recordRegistration(tx, created.id, consents, {
@@ -278,11 +309,21 @@ export class AppAuthService {
       data: { verified_at: new Date() },
     });
 
+    return this.applyPassword(challenge.phone_e164, password, email);
+  }
+
+  /** Same as [setPassword], with the phone proven by a Firebase Phone Auth ID token. */
+  async setPasswordWithFirebase(idToken: string, password: string, email?: string) {
+    const { phoneE164 } = await this.firebase.verify(idToken);
+    return this.applyPassword(phoneE164, password, email);
+  }
+
+  private async applyPassword(phoneE164: string, password: string, email?: string) {
     // Same as OTP verify: a first-time phone gets its account created here.
     const user =
-      (await this.prisma.users.findUnique({ where: { phone_e164: challenge.phone_e164 } })) ??
+      (await this.prisma.users.findUnique({ where: { phone_e164: phoneE164 } })) ??
       (await this.prisma.users.create({
-        data: { id: randomUUID(), phone_e164: challenge.phone_e164 },
+        data: { id: randomUUID(), phone_e164: phoneE164 },
       }));
     if (email) {
       const taken = await this.prisma.users.findFirst({
