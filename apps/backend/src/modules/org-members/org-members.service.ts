@@ -34,7 +34,8 @@ export class OrgMembersService {
   // ---- Invite ---------------------------------------------------------------
 
   async invite(orgId: string, inviterId: string, phoneE164: string, role: 'MANAGER' | 'MEMBER' | 'DRIVER') {
-    await this.requireManager(orgId, inviterId);
+    // Adding a person (above all a manager) is the owner's decision.
+    await this.requireOwner(orgId, inviterId);
 
     // Idempotent: return existing active invite for same phone+org
     const existing = await this.prisma.org_invitations.findFirst({

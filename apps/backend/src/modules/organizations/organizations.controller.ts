@@ -7,17 +7,40 @@ import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { OrganizationsService } from './organizations.service';
 import { countryCodeSchema } from '../../common/countries/country.schema';
 
-const createOrgSchema = z.object({
-  kind: z.enum(['INDIVIDUAL', 'BUSINESS']),
-  displayName: z.string().min(1).max(200),
-  countryCode: countryCodeSchema.optional(),
-});
+const workspaceKinds = ['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'DRIVER'] as const;
+
+/** provider_activity_type: a wrong value is a 400 here, not a database error. */
+const providerActivities = [
+  'FREIGHT_SEA',
+  'FREIGHT_AIR',
+  'FREIGHT_LAND',
+  'EXPRESS',
+  'TRANSPORT_CARRIER',
+  'TRANSPORT_BROKER',
+  'WAREHOUSE',
+  'CUSTOMS_BROKER',
+  'OTHER',
+] as const;
+
+const createOrgSchema = z
+  .object({
+    kind: z.enum(['INDIVIDUAL', 'BUSINESS']),
+    displayName: z.string().min(1).max(200),
+    countryCode: countryCodeSchema.optional(),
+    // Optional: open the first account together with the organization (one atomic write).
+    workspace: z.enum(workspaceKinds).optional(),
+    activities: z.array(z.enum(providerActivities)).max(20).optional(),
+  })
+  .refine((v) => !v.activities?.length || v.workspace, {
+    message: 'activities need a workspace',
+    path: ['activities'],
+  });
 
 const setCountrySchema = z.object({ countryCode: countryCodeSchema });
 
 const addWorkspaceSchema = z.object({
-  workspace: z.enum(['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'DRIVER']),
-  activities: z.array(z.string()).optional(),
+  workspace: z.enum(workspaceKinds),
+  activities: z.array(z.enum(providerActivities)).max(20).optional(),
 });
 
 const addServiceAreaSchema = z.object({
@@ -34,8 +57,8 @@ export class OrganizationsController {
 
   @Post()
   create(@Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
-    const { kind, displayName, countryCode } = parseBody(createOrgSchema, body);
-    return this.orgs.create(user.sub, kind, displayName, countryCode);
+    const { kind, displayName, countryCode, workspace, activities } = parseBody(createOrgSchema, body);
+    return this.orgs.create(user.sub, kind, displayName, countryCode, workspace ? { workspace, activities } : undefined);
   }
 
   @Patch(':id')

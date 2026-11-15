@@ -20,7 +20,7 @@ const changeRoleSchema = z.object({
 export class OrgMembersController {
   constructor(private readonly svc: OrgMembersService) {}
 
-  /** Invite a new member by phone number */
+  /** Invite a new member by phone number (owner only) */
   @Post('organizations/:id/invitations')
   invite(@Param('id') orgId: string, @Body() body: unknown, @CurrentUser() user: AppTokenPayload) {
     const { phoneE164, role } = parseBody(inviteSchema, body);
