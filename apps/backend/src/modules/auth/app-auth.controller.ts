@@ -7,6 +7,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { AppAuthService } from './app-auth.service';
 import { acceptanceMeta, itemsSchema, termsVersionSchema } from '../legal/legal.http';
+import { createOrganizationSchema } from '../organizations/organization-input';
 
 const otpRequestSchema = z.object({
   phone: z.string().min(6),
@@ -22,6 +23,19 @@ const deviceSchema = z.object({
   pushToken: z.string().nullish(),
 });
 
+/** An empty form field means "not given". */
+const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+
+/** The sign-up form's data: stored with the account when this verify creates it (ignored for an existing user). */
+const registrationSchema = z
+  .object({
+    // 2 to 80 characters: the database enforces it (ck_users_name), so a wrong length is a 400, not a 500.
+    fullName: z.preprocess(emptyToUndefined, z.string().trim().min(2).max(80).optional()),
+    email: z.preprocess(emptyToUndefined, z.string().trim().email().max(254).optional()),
+    organization: createOrganizationSchema.optional(),
+  })
+  .nullish();
+
 const otpVerifySchema = z.object({
   challengeId: z.string().uuid(),
   code: z.string().length(6),
@@ -30,6 +44,7 @@ const otpVerifySchema = z.object({
   consents: z
     .object({ termsVersion: termsVersionSchema, items: itemsSchema, locale: z.enum(['ar', 'en']) })
     .nullish(),
+  registration: registrationSchema,
 });
 
 /** Firebase Phone Auth: the ID token the app got after the SMS code (proves the phone). */
@@ -41,6 +56,7 @@ const firebaseVerifySchema = z.object({
   consents: z
     .object({ termsVersion: termsVersionSchema, items: itemsSchema, locale: z.enum(['ar', 'en']) })
     .nullish(),
+  registration: registrationSchema,
 });
 
 const refreshSchema = z.object({ refreshToken: z.string().min(10) });
@@ -88,14 +104,29 @@ export class AppAuthController {
 
   @Post('otp/verify')
   async verifyOtp(@Body() body: unknown, @Req() req: FastifyRequest) {
-    const { challengeId, code, device, consents } = parseBody(otpVerifySchema, body);
-    return this.auth.verifyOtp(challengeId, code, device, req.ip, consents ?? undefined, acceptanceMeta(req));
+    const { challengeId, code, device, consents, registration } = parseBody(otpVerifySchema, body);
+    return this.auth.verifyOtp(
+      challengeId,
+      code,
+      device,
+      req.ip,
+      consents ?? undefined,
+      acceptanceMeta(req),
+      registration ?? undefined,
+    );
   }
 
   @Post('firebase/verify')
   async verifyFirebase(@Body() body: unknown, @Req() req: FastifyRequest) {
-    const { idToken, device, consents } = parseBody(firebaseVerifySchema, body);
-    return this.auth.verifyFirebase(idToken, device, req.ip, consents ?? undefined, acceptanceMeta(req));
+    const { idToken, device, consents, registration } = parseBody(firebaseVerifySchema, body);
+    return this.auth.verifyFirebase(
+      idToken,
+      device,
+      req.ip,
+      consents ?? undefined,
+      acceptanceMeta(req),
+      registration ?? undefined,
+    );
   }
 
   @Post('password/login')

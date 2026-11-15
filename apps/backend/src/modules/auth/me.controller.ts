@@ -16,7 +16,8 @@ const notifyPrefsSchema = z
   .strict();
 
 const patchMeSchema = z.object({
-  fullName: z.string().min(1).max(200).optional(),
+  // 2 to 80 characters, as the database requires (ck_users_name): otherwise a wrong length is a 500.
+  fullName: z.string().trim().min(2).max(80).optional(),
   email: z.string().email().optional(),
   locale: z.enum(['ar', 'en']).optional(),
 });

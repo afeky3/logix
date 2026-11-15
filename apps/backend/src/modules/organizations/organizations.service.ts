@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { CountriesService } from '../../common/countries/countries.service';
@@ -43,11 +44,13 @@ export class OrganizationsService {
     displayName: string,
     countryCode?: string,
     initial?: InitialWorkspace,
+    /** Pass the caller's transaction to make this part of a larger atomic write (registration). */
+    tx?: Prisma.TransactionClient,
   ) {
     const country = countryCode ? await this.countries.assertValid(countryCode) : undefined;
     const orgId = randomUUID();
     const activities = initial?.activities ?? [];
-    const org = await this.prisma.organizations.create({
+    const org = await (tx ?? this.prisma).organizations.create({
       data: {
         id: orgId,
         kind,

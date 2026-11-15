@@ -40,6 +40,7 @@ function setup(existing: Record<string, unknown> | null, verifyResult: { phoneE1
     { labels: jest.fn(async () => ({})) } as never,
     legal as never,
     firebase as never,
+    {} as never,
   );
   jest.spyOn(service, 'getWorkspaces').mockResolvedValue([] as never);
   return { service, prisma, firebase, legal, created };

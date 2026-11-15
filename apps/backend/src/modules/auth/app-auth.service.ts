@@ -12,6 +12,8 @@ import { WhatsAppOtpSender } from '../../infrastructure/notifications/whatsapp-o
 import { LegalAcceptancesService, type AcceptanceMeta } from '../legal/legal-acceptances.service';
 import { assertItems, type LegalItem } from '../legal/legal.rules';
 import { FirebasePhoneVerifier } from './firebase-phone.verifier';
+import { OrganizationsService } from '../organizations/organizations.service';
+import type { CreateOrganizationInput } from '../organizations/organization-input';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 45 * 1000;
@@ -29,6 +31,22 @@ export interface RegistrationConsents {
   termsVersion: string;
   items: LegalItem[];
   locale: 'ar' | 'en';
+}
+
+/** What the sign-up form collected. Written together with the account, only when this verify creates it:
+ * an existing user's request for it is ignored, like the consents. */
+export interface RegistrationInput {
+  fullName?: string;
+  email?: string;
+  organization?: CreateOrganizationInput;
+}
+
+/** [RegistrationInput] after the checks that must pass before anything is written. */
+interface PreparedRegistration {
+  fullName?: string;
+  /** Left out when another account already uses it (it is a login identifier, it must stay unique). */
+  email?: string;
+  organization?: CreateOrganizationInput;
 }
 
 export interface VerifyDevice {
@@ -50,6 +68,7 @@ export class AppAuthService {
     private readonly countries: CountriesService,
     private readonly legal: LegalAcceptancesService,
     private readonly firebase: FirebasePhoneVerifier,
+    private readonly organizations: OrganizationsService,
   ) {}
 
   /** Best-effort E.164 normalization. Phone format is intentionally
@@ -147,6 +166,7 @@ export class AppAuthService {
     ip?: string,
     consents?: RegistrationConsents,
     meta?: AcceptanceMeta,
+    registration?: RegistrationInput,
   ) {
     const challenge = await this.prisma.otp_challenges.findUnique({ where: { id: challengeId } });
     if (!challenge) throw new AppError('VALIDATION_FAILED', 'Unknown verification challenge');
@@ -177,13 +197,15 @@ export class AppAuthService {
     // Checked before the code is spent, so the app can fix the items and verify again.
     // An existing user's consents are ignored (they accept at launch instead).
     if (!existing && consents) assertItems({ context: 'REGISTRATION', items: consents.items });
+    // Also before the code is spent: a wrong country or the like is fixed and sent again.
+    const prepared = existing ? undefined : await this.prepareRegistration(registration);
 
     await this.prisma.otp_challenges.update({
       where: { id: challengeId },
       data: { verified_at: new Date() },
     });
 
-    return this.completeSignIn(existing, challenge.phone_e164, device, ip, consents, meta);
+    return this.completeSignIn(existing, challenge.phone_e164, device, ip, consents, meta, prepared);
   }
 
   /** Sign in (or register) with a Firebase Phone Auth ID token: Firebase sent and checked the
@@ -194,11 +216,13 @@ export class AppAuthService {
     ip?: string,
     consents?: RegistrationConsents,
     meta?: AcceptanceMeta,
+    registration?: RegistrationInput,
   ) {
     const { phoneE164 } = await this.firebase.verify(idToken);
     const existing = await this.prisma.users.findUnique({ where: { phone_e164: phoneE164 } });
     if (!existing && consents) assertItems({ context: 'REGISTRATION', items: consents.items });
-    return this.completeSignIn(existing, phoneE164, device, ip, consents, meta);
+    const prepared = existing ? undefined : await this.prepareRegistration(registration);
+    return this.completeSignIn(existing, phoneE164, device, ip, consents, meta, prepared);
   }
 
   /** Shared by both proofs of a phone: create the account (with its registration acceptance, in
@@ -210,15 +234,22 @@ export class AppAuthService {
     ip: string | undefined,
     consents: RegistrationConsents | undefined,
     meta: AcceptanceMeta | undefined,
+    prepared?: PreparedRegistration,
   ) {
     let user = existing;
     const isNewUser = !user;
     if (!user) {
-      // The account and its registration acceptance are written together: no account
-      // exists without the acceptance when the app sent one.
+      // The account, its registration acceptance, the person's name and e-mail and the organization with
+      // its first account are written together: nobody is left with a half-made registration, whatever
+      // the app does or fails to do afterwards.
       user = await this.prisma.$transaction(async (tx) => {
         const created = await tx.users.create({
-          data: { id: randomUUID(), phone_e164: phoneE164 },
+          data: {
+            id: randomUUID(),
+            phone_e164: phoneE164,
+            ...(prepared?.fullName && { full_name: prepared.fullName }),
+            ...(prepared?.email && { email: prepared.email }),
+          },
         });
         if (consents) {
           await this.legal.recordRegistration(tx, created.id, consents, {
@@ -226,6 +257,17 @@ export class AppAuthService {
             userAgent: meta?.userAgent ?? null,
             appVersion: meta?.appVersion ?? device.appVersion ?? null,
           });
+        }
+        const org = prepared?.organization;
+        if (org) {
+          await this.organizations.create(
+            created.id,
+            org.kind,
+            org.displayName,
+            org.countryCode,
+            org.workspace ? { workspace: org.workspace, activities: org.activities } : undefined,
+            tx,
+          );
         }
         return created;
       });
@@ -237,6 +279,22 @@ export class AppAuthService {
     }
 
     return this.issueSession(user, device, ip, isNewUser);
+  }
+
+  /** Checks what must hold before the account is written. A country that does not exist is an error the
+   * person fixes; an e-mail that another account already uses is simply not stored (the registration
+   * still goes through; it can be added later). */
+  private async prepareRegistration(registration?: RegistrationInput): Promise<PreparedRegistration | undefined> {
+    if (!registration) return undefined;
+    const org = registration.organization;
+    if (org?.countryCode) await this.countries.assertValid(org.countryCode);
+
+    let email = registration.email?.toLowerCase();
+    if (email && (await this.prisma.users.findFirst({ where: { email }, select: { id: true } }))) {
+      this.logger.warn('Registration e-mail already belongs to another account; not stored');
+      email = undefined;
+    }
+    return { fullName: registration.fullName, email, organization: org };
   }
 
   /** Password login: phone or email + password. Same session/tokens as OTP. */
@@ -342,7 +400,7 @@ export class AppAuthService {
   }
 
   private async issueSession(
-    user: { id: string; phone_e164: string; full_name: string | null; locale: string; status: string },
+    user: { id: string; phone_e164: string; full_name: string | null; email?: string | null; locale: string; status: string },
     device: VerifyDevice,
     ip: string | undefined,
     isNewUser: boolean,
@@ -378,6 +436,7 @@ export class AppAuthService {
         id: user.id,
         phone: user.phone_e164,
         fullName: user.full_name,
+        email: user.email ?? null,
         locale: user.locale,
       },
       workspaces: await this.getWorkspaces(user.id),
