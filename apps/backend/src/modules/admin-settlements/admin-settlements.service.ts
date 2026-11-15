@@ -18,11 +18,6 @@ export class AdminSettlementsService {
     private readonly refs: ReferenceGenerator,
   ) {}
 
-  async companyBankAccount() {
-    const row = await this.prisma.app_config.findUnique({ where: { key: 'COMPANY_BANK_ACCOUNT' } });
-    return row?.value ?? null;
-  }
-
   async list(status?: string) {
     const rows = await this.prisma.settlements.findMany({
       where: { status: status ? (status as never) : undefined },

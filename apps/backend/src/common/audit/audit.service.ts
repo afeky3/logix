@@ -8,7 +8,8 @@ export interface StaffAuditEntry {
   /** Dotted, e.g. 'payment.approved' (see the audit_logs column comment in 001_init.sql). */
   action: string;
   entityType: string;
-  entityId: string;
+  /** Null for an entity that has no uuid (e.g. a setting identified by its key: use entityReference). */
+  entityId?: string | null;
   entityReference?: string | null;
   before?: Prisma.InputJsonValue;
   after?: Prisma.InputJsonValue;
@@ -33,7 +34,7 @@ export class AuditService {
         actor_staff_id: entry.staffId,
         action: entry.action,
         entity_type: entry.entityType,
-        entity_id: entry.entityId,
+        entity_id: entry.entityId ?? null,
         entity_reference: entry.entityReference ?? null,
         before: entry.before,
         after: entry.after,

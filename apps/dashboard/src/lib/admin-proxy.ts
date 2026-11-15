@@ -46,6 +46,19 @@ export async function adminPost(req: Request, path: string): Promise<NextRespons
   }
 }
 
+export async function adminPut(req: Request, path: string): Promise<NextResponse> {
+  const accessToken = getAccessToken(req);
+  if (!accessToken) return unauthorized();
+  const body = await req.json().catch(() => ({}));
+  try {
+    return NextResponse.json(
+      await backendFetch(path, { method: 'PUT', body: JSON.stringify(body), accessToken }),
+    );
+  } catch (e) {
+    return fromBackendError(e);
+  }
+}
+
 /** Binary passthrough for GET /admin/files/:id — backendFetch assumes
  * JSON, so this one talks to the backend directly. */
 export async function adminGetFile(req: Request, path: string): Promise<NextResponse> {

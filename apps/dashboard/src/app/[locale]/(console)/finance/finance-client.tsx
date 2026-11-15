@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
+import { CompanyBankCard } from "./company-bank-card";
 
 interface Settlement {
   id: string;
@@ -21,13 +22,6 @@ interface Settlement {
   paidAt: string | null;
 }
 
-interface CompanyBankAccount {
-  bankName: string;
-  accountHolderName: string;
-  iban: string;
-  note?: string;
-}
-
 const STATUSES = ["", "SCHEDULED", "ON_HOLD", "PAID"] as const;
 
 function sar(halalas: number) {
@@ -38,7 +32,6 @@ export function FinanceClient() {
   const t = useTranslations("finance");
   const { accessToken } = useAuth();
   const [rows, setRows] = React.useState<Settlement[] | null>(null);
-  const [bank, setBank] = React.useState<CompanyBankAccount | null>(null);
   const [status, setStatus] = React.useState<string>("");
   const [error, setError] = React.useState<string | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
@@ -64,16 +57,6 @@ export function FinanceClient() {
     void load();
   }, [load]);
 
-  React.useEffect(() => {
-    if (!accessToken) return;
-    fetch("/api/admin/settlements/company-bank-account", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-      .then((r) => r.json())
-      .then((j) => setBank(j && j.iban ? (j as CompanyBankAccount) : null))
-      .catch(() => undefined);
-  }, [accessToken]);
-
   async function markPaid(id: string) {
     if (!accessToken) return;
     if (!window.confirm(t("markPaidConfirm"))) return;
@@ -95,16 +78,7 @@ export function FinanceClient() {
 
   return (
     <div className="flex flex-col gap-4">
-      {bank && (
-        <div className="rounded-lg border border-amber-400/60 bg-amber-50 p-4 text-sm dark:bg-amber-950/30">
-          <p className="font-medium">{t("companyAccountTitle")}</p>
-          <p className="mt-1">
-            {bank.bankName} · {bank.accountHolderName} ·{" "}
-            <span className="bidi-isolate font-mono">{bank.iban}</span>
-          </p>
-          <p className="mt-1 text-amber-700 dark:text-amber-400">{t("placeholderNotice")}</p>
-        </div>
-      )}
+      <CompanyBankCard />
 
       <p className="text-sm text-muted-foreground">{t("manualPayoutNote")}</p>
 

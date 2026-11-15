@@ -349,8 +349,6 @@
   "finance": {
     "title": "Finance",
     "subtitle": "Provider payouts: settlements scheduled, held, or paid",
-    "companyAccountTitle": "Company account (collects customer payments)",
-    "placeholderNotice": "Placeholder — replace with the real company account before go-live.",
     "manualPayoutNote": "Payouts are manual for now: confirm the bank transfer was made, then mark the settlement paid.",
     "allStatuses": "All",
     "status": {
@@ -371,7 +369,34 @@
       "status": "Status"
     },
     "markPaid": "Mark paid",
-    "markPaidConfirm": "Confirm the bank transfer was made to this beneficiary? This cannot be undone from here."
+    "markPaidConfirm": "Confirm the bank transfer was made to this beneficiary? This cannot be undone from here.",
+    "bank": {
+      "title": "Company bank account (customer transfers)",
+      "hint": "The account customers see in the app when they pay by bank transfer. A change shows to them at once.",
+      "edit": "Edit",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "fields": {
+        "bankName": "Bank name (Arabic)",
+        "bankNameEn": "Bank name (English)",
+        "accountHolderName": "Account holder (Arabic)",
+        "accountHolderNameEn": "Account holder (English)",
+        "accountNumber": "Account number",
+        "iban": "IBAN"
+      },
+      "reason": "Reason for the change (kept in the audit log)",
+      "reasonRequired": "Write the reason for the change (at least 3 characters).",
+      "confirm": "You are changing the account customers will send their money to. They will see it in the app immediately. Continue?",
+      "saved": "Saved. Customers see this account now.",
+      "saveFailed": "The account was not saved. Try again.",
+      "loadFailed": "Could not load the account.",
+      "ibanInvalid": "Not a valid Saudi IBAN (SA and 22 digits).",
+      "fieldInvalid": "Invalid value.",
+      "notSet": "Not set",
+      "lastUpdated": "Last changed {at} by {name}",
+      "placeholderNotice": "No real account is set yet. Customers see \"details not available\" until you save one."
+    }
   },
   "cases": {
     "title": "Cases",

@@ -22,11 +22,6 @@ export class AdminSettlementsController {
     return this.settlements.list(status);
   }
 
-  @Get('company-bank-account')
-  companyBankAccount() {
-    return this.settlements.companyBankAccount();
-  }
-
   @Post(':id/mark-paid')
   markPaid(@Param('id') id: string, @CurrentStaff() staff: StaffTokenPayload) {
     return this.settlements.markPaid(id, staff.sub);
