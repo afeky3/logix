@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * Admin stopgap (backend/md/modules/02-organizations-kyb-terms.md "KYB
@@ -11,7 +12,10 @@ import { AppError } from '../../common/errors/app-error';
  */
 @Injectable()
 export class AdminKybService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async listCases(status?: string) {
     const rows = await this.prisma.verification_cases.findMany({
@@ -237,26 +241,52 @@ export class AdminKybService {
       throw new AppError('INVALID_STATE_TRANSITION', `Cannot decide a case in status ${kase.status}`);
     }
 
-    const updated = await this.prisma.verification_cases.update({
-      where: { id: caseId },
-      data: {
-        status: decision,
-        decided_at: new Date(),
-        reviewer_staff_id: staffId,
-        decision_reason: reason,
-      },
-    });
+    // The decision, what it unlocks and the notice to the applicant stand or fall together.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.verification_cases.update({
+        where: { id: caseId },
+        data: {
+          status: decision,
+          decided_at: new Date(),
+          reviewer_staff_id: staffId,
+          decision_reason: reason,
+        },
+      });
 
-    if (decision === 'APPROVED') {
-      await this.prisma.org_workspaces.updateMany({
-        where: { organization_id: kase.organization_id, workspace: kase.workspace },
-        data: { status: 'ACTIVE', activated_at: new Date() },
+      if (decision === 'APPROVED') {
+        await tx.org_workspaces.updateMany({
+          where: { organization_id: kase.organization_id, workspace: kase.workspace },
+          data: { status: 'ACTIVE', activated_at: new Date() },
+        });
+        await tx.provider_activities.updateMany({
+          where: { organization_id: kase.organization_id, status: 'PENDING' },
+          data: { status: 'APPROVED', approved_at: new Date() },
+        });
+      }
+
+      // The people who run the account: the owner and any managers.
+      const people = await tx.memberships.findMany({
+        where: { organization_id: kase.organization_id, status: 'ACTIVE', role: { in: ['OWNER', 'MANAGER'] } },
+        select: { user_id: true },
       });
-      await this.prisma.provider_activities.updateMany({
-        where: { organization_id: kase.organization_id, status: 'PENDING' },
-        data: { status: 'APPROVED', approved_at: new Date() },
-      });
-    }
+      const key = decision === 'APPROVED' ? 'approved' : decision === 'REJECTED' ? 'rejected' : 'changes_requested';
+      await this.notifications.create(
+        people.map((p) => ({
+          userId: p.user_id,
+          organizationId: kase.organization_id,
+          workspace: kase.workspace,
+          type: `verification.${key}`,
+          category: 'ACCOUNT' as const,
+          titleKey: `notifications.verification.${key}.title`,
+          bodyKey: `notifications.verification.${key}.body`,
+          params: { workspace: kase.workspace, reason: reason ?? null },
+          deepLink: 'logix://account/verification',
+          priority: 'HIGH' as const,
+        })),
+        tx,
+      );
+      return row;
+    });
 
     return { id: updated.id, status: updated.status, decidedAt: updated.decided_at };
   }

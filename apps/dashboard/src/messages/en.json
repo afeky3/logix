@@ -118,7 +118,10 @@
         "ACTIVITY": "Activity",
         "DOCUMENT": "Uploaded document"
       },
-      "loadError": "Could not load this organization."
+      "loadError": "Could not load this organization.",
+      "view": "View",
+      "actionFailed": "The decision was not saved. Try again.",
+      "fileFailed": "Could not open the file."
     }
   },
   "requests": {

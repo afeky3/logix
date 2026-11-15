@@ -41,6 +41,8 @@ export function OrganizationReview({ organizationId }: { organizationId: string 
   const [reasonByItem, setReasonByItem] = React.useState<Record<string, string>>({});
   const [caseReason, setCaseReason] = React.useState("");
   const [decidingCase, setDecidingCase] = React.useState(false);
+  // A refused decision or a failed download must be visible: the page used to reload as if it had worked.
+  const [actionError, setActionError] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     if (!accessToken) return;
@@ -65,40 +67,89 @@ export function OrganizationReview({ organizationId }: { organizationId: string 
     (c) => c.status === "SUBMITTED" || c.status === "UNDER_REVIEW",
   );
 
-  const decideItem = React.useCallback(
-    async (caseId: string, itemId: string, status: ItemStatus) => {
+  /** POST a decision; shows the server's reason when it refuses (e.g. a CR already verified elsewhere). */
+  const postDecision = React.useCallback(
+    async (path: string, body: unknown) => {
       if (!accessToken) return;
-      setBusyItem(itemId);
+      setActionError(null);
       try {
-        await fetch(`/api/admin/verification-cases/${caseId}/items/${itemId}/decision`, {
+        const res = await fetch(path, {
           method: "POST",
           headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ status, reasonNote: reasonByItem[itemId] || undefined }),
+          body: JSON.stringify(body),
         });
-        await load();
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          setActionError(data?.error?.message ?? t("actionFailed"));
+        }
+      } catch {
+        setActionError(t("actionFailed"));
+      }
+      await load();
+    },
+    [accessToken, load, t],
+  );
+
+  const decideItem = React.useCallback(
+    async (caseId: string, itemId: string, status: ItemStatus) => {
+      setBusyItem(itemId);
+      try {
+        await postDecision(`/api/admin/verification-cases/${caseId}/items/${itemId}/decision`, {
+          status,
+          reasonNote: reasonByItem[itemId] || undefined,
+        });
       } finally {
         setBusyItem(null);
       }
     },
-    [accessToken, reasonByItem, load],
+    [postDecision, reasonByItem],
   );
 
   const decideCase = React.useCallback(
     async (decision: "APPROVED" | "CHANGES_REQUESTED" | "REJECTED") => {
-      if (!accessToken || !activeCase) return;
+      if (!activeCase) return;
       setDecidingCase(true);
       try {
-        await fetch(`/api/admin/verification-cases/${activeCase.id}/decision`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ decision, reason: caseReason || undefined }),
+        await postDecision(`/api/admin/verification-cases/${activeCase.id}/decision`, {
+          decision,
+          reason: caseReason || undefined,
         });
-        await load();
       } finally {
         setDecidingCase(false);
       }
     },
-    [accessToken, activeCase, caseReason, load],
+    [activeCase, caseReason, postDecision],
+  );
+
+  /** A plain link can't carry the staff token (it lives in memory), so the file is fetched with it:
+   * "view" opens it in a tab, "download" saves it. */
+  const fetchFile = React.useCallback(
+    async (id: string, name: string | null, mode: "view" | "download") => {
+      if (!accessToken) return;
+      setActionError(null);
+      // Opened synchronously, inside the click, or the browser blocks the popup.
+      const tab = mode === "view" ? window.open("", "_blank") : null;
+      try {
+        const res = await fetch(`/api/admin/files/${id}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!res.ok) throw new Error("download failed");
+        const url = URL.createObjectURL(await res.blob());
+        if (tab) {
+          tab.location.href = url;
+        } else {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = name ?? id;
+          a.click();
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch {
+        tab?.close();
+        setActionError(t("fileFailed"));
+      }
+    },
+    [accessToken, t],
   );
 
   if (error) {
@@ -131,6 +182,12 @@ export function OrganizationReview({ organizationId }: { organizationId: string 
           ))}
         </div>
       </div>
+
+      {actionError && (
+        <p role="alert" className="rounded-md border border-destructive px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </p>
+      )}
 
       <Card>
         <CardHeader>
@@ -248,14 +305,22 @@ export function OrganizationReview({ organizationId }: { organizationId: string 
                   <span>
                     {f.originalName ?? f.id} · {f.purpose}
                   </span>
-                  <a
-                    href={`/api/admin/files/${f.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    {t("download")}
-                  </a>
+                  <span className="flex gap-3">
+                    <button
+                      type="button"
+                      className="text-sm text-primary hover:underline"
+                      onClick={() => void fetchFile(f.id, f.originalName, "view")}
+                    >
+                      {t("view")}
+                    </button>
+                    <button
+                      type="button"
+                      className="text-sm text-primary hover:underline"
+                      onClick={() => void fetchFile(f.id, f.originalName, "download")}
+                    >
+                      {t("download")}
+                    </button>
+                  </span>
                 </li>
               ))}
             </ul>

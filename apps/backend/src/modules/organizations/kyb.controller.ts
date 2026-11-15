@@ -6,12 +6,17 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AppTokenPayload } from '../../common/auth/jwt-payload';
 import { KybService } from './kyb.service';
 
-const businessProfileSchema = z.object({
+export const businessProfileSchema = z.object({
   legalName: z.string().min(1).max(300),
   tradeName: z.string().max(300).optional(),
-  crNumber: z.string().min(1).max(50),
+  // The database enforces both formats (ck_business_cr / ck_business_vat): saying so here turns a 500
+  // "Internal error" into a message the person can act on.
+  crNumber: z.string().trim().regex(/^[0-9]{10}$/, 'The CR number is 10 digits'),
   crExpiry: z.string().optional(),
-  vatNumber: z.string().max(50).optional(),
+  vatNumber: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.string().trim().regex(/^3[0-9]{13}3$/, 'The VAT number is 15 digits, starting and ending with 3').optional(),
+  ),
   contactPhone: z.string().optional(),
   contactEmail: z.string().email().optional(),
   registeredAddressId: z.string().uuid().optional(),

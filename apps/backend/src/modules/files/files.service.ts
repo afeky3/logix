@@ -7,12 +7,22 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { KybService } from '../organizations/kyb.service';
+import { matchesDeclaredType } from './file-signature';
 
 const ALLOWED_MIME: Record<string, string> = {
   'application/pdf': '.pdf',
   'image/jpeg': '.jpg',
   'image/png': '.png',
 };
+
+/** The declared type is the client's word: the bytes have to agree with it. */
+function assertContentMatchesType(buffer: Buffer, mimeType: string): void {
+  if (!matchesDeclaredType(buffer, mimeType)) {
+    throw new AppError('VALIDATION_FAILED', 'The file content does not match its type', {
+      details: [{ field: 'file', code: 'content_mismatch' }],
+    });
+  }
+}
 
 export interface UploadInput {
   userId: string;
@@ -72,6 +82,7 @@ export class FilesService {
         details: [{ field: 'file', code: 'unsupported_mime_type' }],
       });
     }
+    assertContentMatchesType(input.buffer, input.mimeType);
 
     const id = randomUUID();
     const storageKey = `${input.organizationId}/${id}${ext}`;
@@ -235,6 +246,7 @@ export class FilesService {
     };
     const ext = AVATAR_MIME[input.mimeType];
     if (!ext) throw new AppError('VALIDATION_FAILED', 'Only JPEG, PNG or WebP allowed for avatars');
+    assertContentMatchesType(input.buffer, input.mimeType);
 
     const id = randomUUID();
     const storageKey = `avatars/${input.userId}/${id}${ext}`;
@@ -274,6 +286,7 @@ export class FilesService {
     const LOGO_MIME: Record<string, string> = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
     const ext = LOGO_MIME[input.mimeType];
     if (!ext) throw new AppError('VALIDATION_FAILED', 'Only JPEG, PNG or WebP allowed for logos');
+    assertContentMatchesType(input.buffer, input.mimeType);
 
     const id = randomUUID();
     const storageKey = `logos/${input.organizationId}/${id}${ext}`;
