@@ -19,6 +19,7 @@ const detailsSchema = z.object({
   containerKindOther: z.string().max(120).optional(),
   borderCrossing: z.enum(['BATHA', 'HADITHA', 'RAQI', 'OTHER']).optional(),
   borderCrossingOther: z.string().max(120).optional(),
+  truckType: z.enum(['TRAILER', 'REEFER', 'SEMI']).optional(),
   piecesCount: z.number().int().positive().optional(),
   weightKg: z.number().positive().optional(),
   hsCode: z.string().regex(/^[0-9]{6,12}$/, 'HS code must be 6 to 12 digits').optional(),

@@ -15,13 +15,16 @@ export class ProductsService {
 
   async list(
     userId: string,
-    opts: { category?: string; q?: string; limit: number; organizationId?: string; country?: string },
+    opts: { category?: string; q?: string; limit: number; organizationId?: string; country?: string; supplierOrgId?: string },
   ) {
     if (opts.organizationId) await this.requireMembership(opts.organizationId, userId);
-    const country = await this.countries.resolveFilter(opts);
+    // One supplier's catalog is the whole catalog: the active account's country is not applied to it
+    // unless a country is asked for.
+    const country = await this.countries.resolveFilter(opts.supplierOrgId && !opts.country ? { ...opts, country: 'ALL' } : opts);
     const where = {
       status: 'PUBLISHED' as const,
       deleted_at: null,
+      ...(opts.supplierOrgId && { supplier_org_id: opts.supplierOrgId }),
       ...(country && { country_code: country }),
       product_categories: opts.category ? { slug: opts.category } : undefined,
       name: opts.q ? { contains: opts.q, mode: 'insensitive' as const } : undefined,

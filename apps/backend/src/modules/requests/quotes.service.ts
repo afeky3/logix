@@ -2,13 +2,20 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { quotes } from '@prisma/client';
 
+import { NotificationEvents } from '../notifications/notification-events.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { Money } from '../../common/money/money';
+import { timeOf } from './requests.service';
 
 const CONTRACT_INCLUDE = {
-  transport_request_details: { select: { long_term_contract: true, contract_term: true } },
+  transport_request_details: { select: { long_term_contract: true, contract_term: true, pickup_time: true } },
 } as const;
+
+/** The pickup time (HH:mm) a customer asked for, or null. */
+function pickupTimeOf(request: { transport_request_details: { pickup_time?: Date | null } | null }): string | null {
+  return timeOf(request.transport_request_details?.pickup_time);
+}
 
 /** The monthly-contract term a customer asked for, or null for a one-off request. */
 function contractTermOf(request: {
@@ -53,7 +60,10 @@ export interface QuoteInput {
 
 @Injectable()
 export class QuotesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: NotificationEvents,
+  ) {}
 
   private async requireMembership(orgId: string, userId: string) {
     const membership = await this.prisma.memberships.findUnique({
@@ -192,6 +202,9 @@ export class QuotesService {
       },
     });
 
+    // Tells the customer; never fails the quote.
+    await this.events.quoteReceived(quoteId);
+
     return this.serializeProviderView(quote);
   }
 
@@ -280,7 +293,7 @@ export class QuotesService {
       return Number(a.total_amount) - Number(b.total_amount); // price default
     });
 
-    return sorted.map((q) => this.serializeCustomerView(q, request.service_type, contractTermOf(request)));
+    return sorted.map((q) => this.serializeCustomerView(q, request.service_type, contractTermOf(request), pickupTimeOf(request)));
   }
 
   async getForCustomer(userId: string, quoteId: string) {
@@ -293,7 +306,7 @@ export class QuotesService {
     });
     if (!quote) throw new AppError('NOT_FOUND', 'Quote not found');
     await this.requireMembership(quote.service_requests.customer_org_id, userId);
-    return this.serializeCustomerView(quote, quote.service_requests.service_type, contractTermOf(quote.service_requests));
+    return this.serializeCustomerView(quote, quote.service_requests.service_type, contractTermOf(quote.service_requests), pickupTimeOf(quote.service_requests));
   }
 
   async compareForCustomer(userId: string, requestId: string, ids: string[]) {
@@ -305,7 +318,7 @@ export class QuotesService {
       where: { id: { in: ids }, request_id: requestId },
       include: { organizations: { select: { display_name: true, rating_avg: true, completed_jobs_count: true } } },
     });
-    return rows.map((q) => this.serializeCustomerView(q, request.service_type, contractTermOf(request)));
+    return rows.map((q) => this.serializeCustomerView(q, request.service_type, contractTermOf(request), pickupTimeOf(request)));
   }
 
   private serializeProviderView(q: quotes) {
@@ -346,13 +359,14 @@ export class QuotesService {
     scope_included: string | null;
     exclusions: string | null;
     organizations: { display_name: string; rating_avg: unknown; completed_jobs_count: number };
-  }, serviceType: string, contractTerm: string | null) {
+  }, serviceType: string, contractTerm: string | null, pickupTime: string | null = null) {
     return {
       id: q.id,
       requestId: q.request_id,
       status: q.status,
       serviceType,
       contractTerm,
+      pickupTime,
       providerId: q.provider_org_id,
       providerName: q.organizations.display_name,
       providerRating: q.organizations.rating_avg ? Number(q.organizations.rating_avg) : null,

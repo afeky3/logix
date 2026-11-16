@@ -4,6 +4,8 @@ import { Injectable, Logger } from '@nestjs/common';
 export interface RouteEstimate {
   distanceKm: number;
   durationMin: number;
+  /** ROUTED: from the routing service. ESTIMATED: the fixed fallback used when geocoding or routing failed. */
+  source: 'ROUTED' | 'ESTIMATED';
 }
 
 export interface GeocodeResult {
@@ -97,6 +99,7 @@ export class OsmMapsAdapter {
       return {
         distanceKm: Math.round(route.distance / 100) / 10, // m -> km, 1 decimal
         durationMin: Math.round(route.duration / 60),
+        source: 'ROUTED',
       };
     } catch (err) {
       this.logger.warn(`OSRM route failed: ${err instanceof Error ? err.message : err}`);
@@ -111,7 +114,7 @@ export class OsmMapsAdapter {
     const hash = createHash('sha1').update(`${pickupLabel}|${dropoffLabel}`).digest();
     const km = 80 + (hash.readUInt16BE(0) % 1400);
     const minutes = Math.round((km / 65) * 60);
-    return { distanceKm: km, durationMin: minutes };
+    return { distanceKm: km, durationMin: minutes, source: 'ESTIMATED' };
   }
 
   /** Nominatim's ISO code is authoritative, so this is an exact lookup

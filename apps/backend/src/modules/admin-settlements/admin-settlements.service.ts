@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import { NotificationEvents } from '../notifications/notification-events.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
@@ -16,6 +17,7 @@ export class AdminSettlementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly refs: ReferenceGenerator,
+    private readonly events: NotificationEvents,
   ) {}
 
   async list(status?: string) {
@@ -107,6 +109,7 @@ export class AdminSettlementsService {
         data: { status: 'PAID', paid_at: now, payout_id: payoutId },
       }),
     ]);
+    await this.events.settlementPaid(id);
     return this.get(id);
   }
 

@@ -1,3 +1,4 @@
+import { NotificationEvents } from '../notifications/notification-events.service';
 import { LegalAcceptancesService } from '../legal/legal-acceptances.service';
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
@@ -65,6 +66,7 @@ export class OrdersService {
     private readonly contracts: ContractsService,
     private readonly config: ConfigService,
     private readonly legal: LegalAcceptancesService,
+    private readonly events: NotificationEvents,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -179,6 +181,7 @@ export class OrdersService {
     ]);
 
     const intentId = await this.createPaymentIntent(orderId, request.customer_org_id, userId, quote.total_amount, quote.currency);
+    await this.events.quoteAccepted(orderId);
 
     return {
       order: await this.serializeOrder(orderId),

@@ -23,7 +23,7 @@ function setup(existingOrder: unknown = null) {
       throw new AppError('CONSENT_REQUIRED', 'Accept the order terms before accepting this quote');
     }),
   };
-  const service = new OrdersService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, legal as never);
+  const service = new OrdersService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, legal as never, {} as never);
   return { service, prisma, legal };
 }
 

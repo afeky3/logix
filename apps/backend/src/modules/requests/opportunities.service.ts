@@ -3,13 +3,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { CountriesService } from '../../common/countries/countries.service';
+import { timeOf } from './requests.service';
 
 const REQUEST_INCLUDE = {
   service_requests: {
     include: {
       transport_request_details: true,
       shipping_request_details: {
-        select: { mode: true, origin_label: true, destination_label: true, cargo_ready_date: true, weight_kg: true },
+        select: { mode: true, origin_label: true, destination_label: true, cargo_ready_date: true, weight_kg: true, truck_type: true },
       },
       warehousing_request_details: { select: { start_date: true, weight_kg: true } },
       customs_request_details: { select: { movement: true, goods_description: true } },
@@ -166,6 +167,7 @@ export class OpportunitiesService {
         scope: string | null;
         vehicle_type_code: string | null;
         transport_date: Date | null;
+        pickup_time: Date | null;
       } | null;
       shipping_request_details: {
         mode: string | null;
@@ -173,6 +175,7 @@ export class OpportunitiesService {
         destination_label: string | null;
         cargo_ready_date: Date | null;
         weight_kg: { toString(): string } | null;
+        truck_type: string | null;
       } | null;
       warehousing_request_details: { start_date: Date | null; weight_kg: { toString(): string } | null } | null;
       customs_request_details: { movement: string | null; goods_description: string | null } | null;
@@ -203,7 +206,9 @@ export class OpportunitiesService {
       destinationSummary: r.destination_summary ?? ship?.destination_label ?? null,
       scope: r.transport_request_details?.scope,
       vehicleTypeCode: r.transport_request_details?.vehicle_type_code,
+      pickupTime: timeOf(r.transport_request_details?.pickup_time),
       freightMode: ship?.mode ?? null,
+      truckType: ship?.truck_type ?? null,
       weightKg: weight != null ? Number(weight.toString()) : null,
       customsMovement: cu?.movement ?? null,
       goodsDescription: cu?.goods_description ?? null,

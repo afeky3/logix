@@ -13,6 +13,7 @@ const listQuery = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+  workspace: z.enum(['CUSTOMER', 'SUPPLIER', 'PROVIDER', 'DRIVER']).optional(),
 });
 
 /** The signed-in user's notification center. */

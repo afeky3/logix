@@ -142,6 +142,59 @@ export class OrganizationsService {
     return { id: ws.id, workspace: ws.workspace, status: ws.status };
   }
 
+  /**
+   * What a buyer sees of a supplier before ordering. Any signed-in user; no contacts or documents. Only
+   * what is recorded: there is no company description and no supply orders (a supply order is a chat),
+   * so `about` and `completedOrdersCount` are null, and a rating is present only when ratings exist.
+   * `city` is the district of the registered address.
+   */
+  async getSupplierProfile(organizationId: string) {
+    const org = await this.prisma.organizations.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        display_name: true,
+        logo_file_id: true,
+        country_code: true,
+        created_at: true,
+        org_workspaces: { where: { workspace: 'SUPPLIER' }, select: { status: true } },
+      },
+    });
+    if (!org || org.org_workspaces.length === 0) throw new AppError('NOT_FOUND', 'Supplier not found');
+
+    const [productsCount, address, ratings] = await Promise.all([
+      this.prisma.products.count({ where: { supplier_org_id: organizationId, status: 'PUBLISHED', deleted_at: null } }),
+      this.prisma.addresses.findFirst({
+        where: { organization_id: organizationId, is_registered: true, deleted_at: null },
+        select: { district: true },
+      }),
+      this.prisma.ratings.aggregate({
+        where: { ratee_org_id: organizationId, status: 'PUBLISHED' },
+        _avg: { stars: true },
+        _count: { _all: true },
+      }),
+    ]);
+    const country = await this.countries.label(org.country_code);
+    const rated = ratings._count._all > 0;
+
+    return {
+      organizationId: org.id,
+      displayName: org.display_name,
+      logoFileId: org.logo_file_id ?? null,
+      ...country,
+      city: address?.district ?? null,
+      memberSince: org.created_at,
+      isVerified: org.org_workspaces[0].status === 'ACTIVE',
+      productsCount,
+      completedOrdersCount: null,
+      about: null,
+      ...(rated && {
+        ratingAvg: Math.round((ratings._avg.stars ?? 0) * 100) / 100,
+        ratingCount: ratings._count._all,
+      }),
+    };
+  }
+
   /** Public-facing profile a buyer sees for a provider they got a quote
    * from (Q03 → "view provider"). No membership required — this is
    * intentionally visible to any authenticated user, same as a quote's

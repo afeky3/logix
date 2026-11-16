@@ -22,6 +22,8 @@ export interface NotificationListQuery {
   page: number;
   pageSize: number;
   unreadOnly: boolean;
+  /** Only this account's notifications; the unread count follows it. Without it: everything of the user. */
+  workspace?: 'CUSTOMER' | 'SUPPLIER' | 'PROVIDER' | 'DRIVER';
 }
 
 /** The in-app notification center (msg.notifications). Push delivery comes later. */
@@ -49,8 +51,9 @@ export class NotificationsService {
     });
   }
 
-  async list(userId: string, { page, pageSize, unreadOnly }: NotificationListQuery) {
-    const where: Prisma.notificationsWhereInput = { user_id: userId, ...(unreadOnly ? { read_at: null } : {}) };
+  async list(userId: string, { page, pageSize, unreadOnly, workspace }: NotificationListQuery) {
+    const scope: Prisma.notificationsWhereInput = { user_id: userId, ...(workspace ? { workspace } : {}) };
+    const where: Prisma.notificationsWhereInput = { ...scope, ...(unreadOnly ? { read_at: null } : {}) };
     const [rows, total, unreadCount] = await Promise.all([
       this.prisma.notifications.findMany({
         where,
@@ -59,7 +62,7 @@ export class NotificationsService {
         take: pageSize,
       }),
       this.prisma.notifications.count({ where }),
-      this.prisma.notifications.count({ where: { user_id: userId, read_at: null } }),
+      this.prisma.notifications.count({ where: { ...scope, read_at: null } }),
     ]);
     return {
       items: rows.map((n) => ({
@@ -71,6 +74,8 @@ export class NotificationsService {
         params: n.params,
         deepLink: n.deep_link,
         priority: n.priority,
+        workspace: n.workspace,
+        organizationId: n.organization_id,
         isRead: n.read_at !== null,
         readAt: n.read_at,
         createdAt: n.created_at,

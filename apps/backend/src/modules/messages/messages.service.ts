@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import { NotificationEvents } from '../notifications/notification-events.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 
@@ -15,7 +16,10 @@ const STATUS_LABELS: Record<string, string> = {
 
 @Injectable()
 export class MessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: NotificationEvents,
+  ) {}
 
   // ─── Guards ────────────────────────────────────────────────────────────────
 
@@ -293,6 +297,9 @@ export class MessagesService {
         users: { select: { full_name: true } },
       },
     });
+
+    // The opening message of a product inquiry is a supply order: tell the supplier.
+    await this.events.supplyOrderNew(conversationId, organizationId, body);
 
     return this.serializeMessage(msg, organizationId);
   }

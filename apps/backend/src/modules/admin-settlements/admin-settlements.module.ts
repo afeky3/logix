@@ -3,9 +3,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { AdminSettlementsController } from './admin-settlements.controller';
 import { AdminSettlementsService } from './admin-settlements.service';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [JwtModule.register({})], // StaffAuthGuard needs JwtService
+  imports: [JwtModule.register({}), NotificationsModule], // StaffAuthGuard needs JwtService
   controllers: [AdminSettlementsController],
   providers: [AdminSettlementsService, ReferenceGenerator],
 })

@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { NotificationEvents } from '../notifications/notification-events.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 
 /** Staff review of buyer-reported issues (client round 1). */
 @Injectable()
 export class AdminCasesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: NotificationEvents,
+  ) {}
 
   async list(status?: string) {
     const rows = await this.prisma.cases.findMany({
@@ -90,6 +94,8 @@ export class AdminCasesService {
         closed_at: status === 'CLOSED' ? now : undefined,
       },
     });
+    // Whoever opened it hears about any change of status.
+    if (existing.status !== status) await this.events.caseUpdated(id);
     return this.get(id);
   }
 }

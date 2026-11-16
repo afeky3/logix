@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { NotificationEvents } from '../notifications/notification-events.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { CountriesService } from '../../common/countries/countries.service';
@@ -9,6 +10,11 @@ import { StorageService } from '../storage/storage.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
 import { OsmMapsAdapter } from '../../infrastructure/maps/osm-maps.adapter';
+
+/** A Postgres `time` column as HH:mm. */
+export function timeOf(t: Date | null | undefined): string | null {
+  return t ? t.toISOString().slice(11, 16) : null;
+}
 
 export interface TransportStepInput {
   scope?: string;
@@ -19,6 +25,8 @@ export interface TransportStepInput {
   destinationCountryCode?: string;
   destinationCountryOther?: string;
   transportDate?: string;
+  /** HH:mm; null clears it. */
+  pickupTime?: string | null;
   commodityOther?: string;
   weightValue?: number;
   weightUnit?: string;
@@ -72,6 +80,7 @@ export class RequestsService {
     private readonly storage: StorageService,
     private readonly shipping: ShippingService,
     private readonly countries: CountriesService,
+    private readonly events: NotificationEvents,
   ) {}
 
   private async requireMembership(orgId: string, userId: string) {
@@ -161,7 +170,7 @@ export class RequestsService {
     // are known (OsmMapsAdapter — OpenStreetMap, falls back to a synthetic
     // estimate if unreachable; see its class doc). The resolved regions
     // feed runMatching's service-area check below.
-    let routeEstimate: { distanceKm: number; durationMin: number } | undefined;
+    let routeEstimate: { distanceKm: number; durationMin: number; source: 'ROUTED' | 'ESTIMATED' } | undefined;
     let pickupRegionCode: string | null | undefined;
     let dropoffRegionCode: string | null | undefined;
     const pickup = input.pickupLabel ?? request.transport_request_details?.pickup_label;
@@ -188,6 +197,7 @@ export class RequestsService {
         destination_country_code: input.destinationCountryCode,
         destination_country_other: input.destinationCountryOther,
         transport_date: input.transportDate ? new Date(input.transportDate) : undefined,
+        pickup_time: input.pickupTime === undefined ? undefined : input.pickupTime === null ? null : new Date(`1970-01-01T${input.pickupTime}:00Z`),
         commodity_other: input.commodityOther,
         weight_value: input.weightValue,
         weight_unit: input.weightUnit as never,
@@ -202,6 +212,7 @@ export class RequestsService {
         vehicles_count: input.vehiclesCount,
         route_distance_km: routeEstimate?.distanceKm,
         route_duration_min: routeEstimate?.durationMin,
+        route_source: routeEstimate?.source,
         pickup_region_code: pickupRegionCode,
         dropoff_region_code: dropoffRegionCode,
       },
@@ -329,6 +340,7 @@ export class RequestsService {
       where: { id: requestId },
       data: { matched_provider_count: activities.length },
     });
+    await this.events.opportunityNew(requestId, activities.map((a) => a.organization_id));
     return activities.length;
   }
 
@@ -440,6 +452,7 @@ export class RequestsService {
             dropoffLabel: d.dropoff_label,
             destinationCountryCode: d.destination_country_code,
             transportDate: d.transport_date,
+            pickupTime: timeOf(d.pickup_time),
             commodityOther: d.commodity_other,
             weightValue: d.weight_value,
             weightUnit: d.weight_unit,
@@ -451,6 +464,11 @@ export class RequestsService {
             vehiclesCount: d.vehicles_count,
             routeDistanceKm: d.route_distance_km ? Number(d.route_distance_km) : null,
             routeDurationMin: d.route_duration_min,
+            // Where the distance came from. A row saved before this was recorded is reported as an
+            // estimate: it is never claimed to be a real route.
+            routeEstimate: d.route_distance_km
+              ? { distanceKm: Number(d.route_distance_km), durationMin: d.route_duration_min, source: d.route_source === 'ROUTED' ? 'ROUTED' : 'ESTIMATED' }
+              : null,
             pickupRegionCode: d.pickup_region_code,
             dropoffRegionCode: d.dropoff_region_code,
           }

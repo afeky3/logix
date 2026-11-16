@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { parseBody } from '../../common/http/validate';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -14,11 +14,24 @@ const openCaseSchema = z.object({
   fileIds: z.array(z.string().uuid()).max(10).optional(),
 });
 
+const listCasesQuery = z.object({ organizationId: z.string().uuid() });
+
 /** Buyer-reported issues (client round 1). */
 @Controller('cases')
 @UseGuards(JwtAuthGuard)
 export class CasesController {
   constructor(private readonly cases: CasesService) {}
+
+  @Get()
+  list(@Query() query: Record<string, unknown>, @CurrentUser() user: AppTokenPayload) {
+    const { organizationId } = parseBody(listCasesQuery, query);
+    return this.cases.list(user.sub, organizationId);
+  }
+
+  @Get(':id')
+  get(@Param('id') id: string, @CurrentUser() user: AppTokenPayload) {
+    return this.cases.get(user.sub, id);
+  }
 
   @Post()
   open(@Body() body: unknown, @CurrentUser() user: AppTokenPayload) {

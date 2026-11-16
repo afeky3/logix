@@ -49,6 +49,11 @@ export class OrganizationsController {
     return this.orgs.addWorkspace(id, user.sub, workspace, activities);
   }
 
+  @Get(':id/supplier-profile')
+  getSupplierProfile(@Param('id') id: string) {
+    return this.orgs.getSupplierProfile(id);
+  }
+
   @Get(':id/provider-profile')
   getProviderProfile(@Param('id') id: string) {
     return this.orgs.getProviderProfile(id);

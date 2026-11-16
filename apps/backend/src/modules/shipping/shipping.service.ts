@@ -16,6 +16,7 @@ export interface ShippingDetailsInput {
   containerKindOther?: string;
   borderCrossing?: 'BATHA' | 'HADITHA' | 'RAQI' | 'OTHER';
   borderCrossingOther?: string;
+  truckType?: 'TRAILER' | 'REEFER' | 'SEMI';
   piecesCount?: number;
   weightKg?: number;
   hsCode?: string;
@@ -88,6 +89,7 @@ export class ShippingService {
       container_type_other: input.containerKind === 'OTHER' ? input.containerKindOther : undefined,
       border_crossing: input.borderCrossing,
       border_crossing_other: input.borderCrossing === 'OTHER' ? input.borderCrossingOther : undefined,
+      truck_type: input.truckType,
       package_count: input.piecesCount,
       weight_kg: input.weightKg,
       hs_code: input.hsCode,
@@ -125,7 +127,9 @@ export class ShippingService {
 
   async get(requestId: string, userId: string) {
     await this.getShippingRequest(requestId, userId);
-    return this.prisma.shipping_request_details.findUnique({ where: { request_id: requestId } });
+    const row = await this.prisma.shipping_request_details.findUnique({ where: { request_id: requestId } });
+    // The row keeps its stored (snake_case) names; truckType is an additive camelCase copy for the app.
+    return row && { ...row, truckType: row.truck_type };
   }
 
   /** Submit needs the route and a readiness date — everything else is detail. */

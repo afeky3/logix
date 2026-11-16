@@ -23,6 +23,12 @@ const stepSchema = z.object({
   destinationCountryCode: z.string().length(2).optional(),
   destinationCountryOther: z.string().max(120).optional(),
   transportDate: z.string().optional(),
+  // HH:mm, 24 hours. null clears it.
+  pickupTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'pickupTime is HH:mm')
+    .nullable()
+    .optional(),
   commodityOther: z.string().optional(),
   weightValue: z.number().optional(),
   weightUnit: z.enum(['KG', 'TON']).optional(),

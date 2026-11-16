@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import { NotificationEvents } from '../notifications/notification-events.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 
@@ -52,7 +53,10 @@ export interface OrderProgress {
 /** One place that knows how far an order has got, whatever its service type. */
 @Injectable()
 export class OrderProgressService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: NotificationEvents,
+  ) {}
 
   stepCodes(serviceType: string): string[] {
     if (serviceType === 'TRANSPORT') return TRANSPORT_STEPS.map((s) => s.code);
@@ -221,6 +225,7 @@ export class OrderProgressService {
         },
       }),
     ]);
+    await this.events.orderProgress(orderId, code);
     return this.get(orderId, order.service_type);
   }
 
@@ -344,5 +349,6 @@ export class OrderProgressService {
         },
       }),
     ]);
+    await this.events.orderProgress(orderId, step?.code ?? eventType);
   }
 }

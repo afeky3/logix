@@ -15,6 +15,8 @@ const listQuery = z.object({
   organizationId: z.string().uuid().optional(),
   // One country, or ALL to see every country.
   country: countryFilterSchema.optional(),
+  // Only this supplier's published products (the supplier page in the app).
+  supplierOrgId: z.string().uuid().optional(),
 });
 
 /** Buyer-facing product catalog (client round 1 follow-up). */

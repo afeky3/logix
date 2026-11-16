@@ -7,10 +7,11 @@ import { AdminOrdersService } from './admin-orders.service';
 import { ContractsService } from './contracts.service';
 import { InvoicesService } from './invoices.service';
 import { OrderProgressModule } from './order-progress.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ReferenceGenerator } from '../../common/references/reference-generator';
 
 @Module({
-  imports: [JwtModule.register({}), OrderProgressModule], // JwtAuthGuard/StaffAuthGuard need JwtService
+  imports: [JwtModule.register({}), OrderProgressModule, NotificationsModule], // JwtAuthGuard/StaffAuthGuard need JwtService
   controllers: [OrdersController, AdminOrdersController],
   providers: [OrdersService, AdminOrdersService, ReferenceGenerator, InvoicesService, ContractsService],
   exports: [OrdersService, ContractsService], // admin-payments settles an approved transfer through them

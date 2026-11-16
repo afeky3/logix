@@ -13,9 +13,10 @@ import { OsmMapsAdapter } from '../../infrastructure/maps/osm-maps.adapter';
 import { CustomsModule } from '../customs/customs.module';
 import { StorageModule } from '../storage/storage.module';
 import { ShippingModule } from '../shipping/shipping.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [JwtModule.register({}), CustomsModule, StorageModule, ShippingModule], // JwtAuthGuard/StaffAuthGuard need JwtService
+  imports: [JwtModule.register({}), CustomsModule, StorageModule, ShippingModule, NotificationsModule], // JwtAuthGuard/StaffAuthGuard need JwtService
   controllers: [
     RequestsController,
     OpportunitiesController,
