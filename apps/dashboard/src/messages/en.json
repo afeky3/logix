@@ -483,6 +483,17 @@
       "no": "No",
       "by": "by {name}",
       "loadFailed": "Could not load the return policy"
+    },
+    "documents": {
+      "title": "Documents",
+      "none": "This organization has not uploaded any documents.",
+      "loading": "Loading…",
+      "view": "View",
+      "download": "Download",
+      "loadFailed": "Could not load the documents.",
+      "fileFailed": "Could not open the file.",
+      "reviewCase": "Open the verification case",
+      "verificationHistory": "Verification history"
     }
   },
   "legal": {

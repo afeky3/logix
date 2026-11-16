@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { OrgDetailClient } from "./org-detail-client";
 import { ReturnPolicySection } from "./return-policy-section";
+import { DocumentsSection } from "./documents-section";
 
 export default async function OrgDetailPage({
   params,
@@ -20,6 +21,7 @@ export default async function OrgDetailPage({
       </div>
 
       <OrgDetailClient orgId={id} />
+      <DocumentsSection orgId={id} />
       <ReturnPolicySection orgId={id} />
     </div>
   );
