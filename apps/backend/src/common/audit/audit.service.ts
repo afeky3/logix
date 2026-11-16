@@ -26,6 +26,26 @@ export interface StaffAuditEntry {
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** An action by an app user on their own account (e.g. deleting it). */
+  async logUser(
+    entry: { userId: string; action: string; entityType: string; entityId: string; after?: Prisma.InputJsonValue; ip?: string | null; userAgent?: string | null },
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    await (tx ?? this.prisma).audit_logs.create({
+      data: {
+        id: randomUUID(),
+        actor_type: 'USER',
+        actor_user_id: entry.userId,
+        action: entry.action,
+        entity_type: entry.entityType,
+        entity_id: entry.entityId,
+        after: entry.after,
+        ip: entry.ip ?? null,
+        user_agent: entry.userAgent ?? null,
+      },
+    });
+  }
+
   async logStaff(entry: StaffAuditEntry, tx?: Prisma.TransactionClient): Promise<void> {
     await (tx ?? this.prisma).audit_logs.create({
       data: {

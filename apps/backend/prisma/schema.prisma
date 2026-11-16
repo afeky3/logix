@@ -980,6 +980,9 @@ model users {
   last_login_at                                                           DateTime?                   @db.Timestamptz(6)
   deletion_requested_at                                                   DateTime?                   @db.Timestamptz(6)
   anonymized_at                                                           DateTime?                   @db.Timestamptz(6)
+  deleted_at                                                              DateTime?                   @db.Timestamptz(6)
+  erasable_phone_e164                                                     String?
+  erasable_email                                                          String?                     @db.Citext
   created_at                                                              DateTime                    @default(now()) @db.Timestamptz(6)
   updated_at                                                              DateTime                    @default(now()) @db.Timestamptz(6)
   broker_authorizations_broker_authorizations_confirmed_by_user_idTousers broker_authorizations[]     @relation("broker_authorizations_confirmed_by_user_idTousers")
@@ -4287,6 +4290,7 @@ enum otp_purpose {
   SIGN_IN
   CHANGE_PHONE_OLD
   CHANGE_PHONE_NEW
+  ACCOUNT_DELETION
 
   @@schema("core")
 }

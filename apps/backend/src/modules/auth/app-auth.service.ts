@@ -75,6 +75,10 @@ export class AppAuthService {
    * relaxed on the client (see logic-app form_validators.dart) until D-26
    * (launch geography) is confirmed, so we don't reject here either —
    * we just normalize what we can and store the rest as given. */
+  normalizePhoneNumber(raw: string): string {
+    return this.normalizePhone(raw);
+  }
+
   private normalizePhone(raw: string): string {
     try {
       return parsePhoneNumberWithError(raw, 'SA').number;
@@ -83,7 +87,13 @@ export class AppAuthService {
     }
   }
 
-  async requestOtp(rawPhone: string, ip?: string, deviceId?: string): Promise<OtpRequestResult> {
+  async requestOtp(
+    rawPhone: string,
+    ip?: string,
+    deviceId?: string,
+    /** What the code is for, and whose it is (set for a deletion code: only that user can confirm it). */
+    opts?: { purpose?: 'SIGN_IN' | 'ACCOUNT_DELETION'; userId?: string },
+  ): Promise<OtpRequestResult> {
     const phone = this.normalizePhone(rawPhone);
     const since = new Date(Date.now() - 60 * 60 * 1000);
 
@@ -124,7 +134,8 @@ export class AppAuthService {
       data: {
         id: randomUUID(),
         phone_e164: phone,
-        purpose: 'SIGN_IN',
+        purpose: opts?.purpose ?? 'SIGN_IN',
+        ...(opts?.userId && { user_id: opts.userId }),
         code_hash: toBytes(await argon2.hash(code)),
         expires_at: expiresAt,
         resend_available_at: resendAvailableAt,
@@ -157,6 +168,36 @@ export class AppAuthService {
     }
 
     return { challengeId: challenge.id, expiresAt, resendAvailableAt };
+  }
+
+  /** Checks a code for [purpose] and spends it. Same rules as sign-in (attempts, expiry, one use); a
+   * challenge made for something else, or for another user, is as good as unknown. */
+  async spendChallenge(challengeId: string, code: string, purpose: 'ACCOUNT_DELETION', expectedUserId?: string) {
+    const challenge = await this.prisma.otp_challenges.findUnique({ where: { id: challengeId } });
+    if (!challenge || challenge.purpose !== purpose || (expectedUserId && challenge.user_id !== expectedUserId)) {
+      throw new AppError('OTP_INVALID', 'Incorrect code');
+    }
+    if (challenge.verified_at) throw new AppError('OTP_INVALID', 'This code has already been used');
+    if (challenge.locked_at || challenge.attempts >= challenge.max_attempts) {
+      throw new AppError('OTP_INVALID', 'Too many attempts. Request a new code.');
+    }
+    if (challenge.expires_at < new Date()) throw new AppError('OTP_EXPIRED', 'This code has expired');
+
+    if (!(await argon2.verify(bytesToUtf8(challenge.code_hash), code))) {
+      const attempts = challenge.attempts + 1;
+      await this.prisma.otp_challenges.update({
+        where: { id: challengeId },
+        data: { attempts, locked_at: attempts >= challenge.max_attempts ? new Date() : undefined },
+      });
+      throw new AppError('OTP_INVALID', 'Incorrect code');
+    }
+    // `updateMany` on the unused row: two requests with the same code cannot both succeed.
+    const spent = await this.prisma.otp_challenges.updateMany({
+      where: { id: challengeId, verified_at: null },
+      data: { verified_at: new Date() },
+    });
+    if (spent.count !== 1) throw new AppError('OTP_INVALID', 'This code has already been used');
+    return challenge;
   }
 
   async verifyOtp(

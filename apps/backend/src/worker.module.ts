@@ -8,6 +8,7 @@ import { ContractCyclesCron } from './modules/orders/contract-cycles.cron';
 import { ContractsService } from './modules/orders/contracts.service';
 import { InvoicesService } from './modules/orders/invoices.service';
 import { ReferenceGenerator } from './common/references/reference-generator';
+import { AccountAnonymizationService } from './modules/auth/account-anonymization.service';
 
 /**
  * Cron jobs live here, not in AppModule — AppModule is bootstrapped by
@@ -25,6 +26,7 @@ import { ReferenceGenerator } from './common/references/reference-generator';
     InvoicesService,
     ContractsService,
     ContractCyclesCron,
+    AccountAnonymizationService,
   ],
 })
 export class WorkerModule {}
