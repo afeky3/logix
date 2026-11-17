@@ -28,7 +28,7 @@ export class AuditService {
 
   /** An action by an app user on their own account (e.g. deleting it). */
   async logUser(
-    entry: { userId: string; action: string; entityType: string; entityId: string; after?: Prisma.InputJsonValue; ip?: string | null; userAgent?: string | null },
+    entry: { userId: string; action: string; entityType: string; entityId: string; before?: Prisma.InputJsonValue; after?: Prisma.InputJsonValue; ip?: string | null; userAgent?: string | null },
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     await (tx ?? this.prisma).audit_logs.create({
@@ -39,6 +39,7 @@ export class AuditService {
         action: entry.action,
         entity_type: entry.entityType,
         entity_id: entry.entityId,
+        before: entry.before,
         after: entry.after,
         ip: entry.ip ?? null,
         user_agent: entry.userAgent ?? null,

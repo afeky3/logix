@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { AuditService } from '../../common/audit/audit.service';
 import { encryptField, fingerprint } from '../../common/util/crypto';
 import { isValidSaudiIban } from '../../common/util/iban';
 import { toBytes } from '../../common/util/bytes';
@@ -26,16 +28,24 @@ export interface AddressInput {
   isRegistered?: boolean;
 }
 
+/** undefined = leave as it is, null = clear. */
 export interface BusinessProfileInput {
-  legalName: string;
-  tradeName?: string;
-  crNumber: string;
-  crExpiry?: string;
-  vatNumber?: string;
-  contactPhone?: string;
-  contactEmail?: string;
-  registeredAddressId?: string;
+  legalName?: string;
+  tradeName?: string | null;
+  crNumber?: string;
+  crExpiry?: string | null;
+  vatNumber?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  registeredAddressId?: string | null;
 }
+
+/** The fields whose change after approval sends the profile back to review. */
+const REVIEWED_FIELDS = [
+  ['legalName', 'legal_name'],
+  ['crNumber', 'cr_number'],
+  ['vatNumber', 'vat_number'],
+] as const;
 
 export interface BankAccountInput {
   iban: string;
@@ -59,6 +69,7 @@ export class KybService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   private get ibanKey(): string {
@@ -88,32 +99,84 @@ export class KybService {
 
   async putBusinessProfile(orgId: string, userId: string, input: BusinessProfileInput) {
     await this.requireMembership(orgId, userId);
-    const profile = await this.prisma.business_profiles.upsert({
-      where: { organization_id: orgId },
-      create: {
-        organization_id: orgId,
-        legal_name: input.legalName,
-        trade_name: input.tradeName,
-        cr_number: input.crNumber,
-        cr_expiry: input.crExpiry ? new Date(input.crExpiry) : undefined,
-        vat_number: input.vatNumber,
-        contact_phone: input.contactPhone,
-        contact_email: input.contactEmail,
-        registered_address_id: input.registeredAddressId,
-      },
-      update: {
-        legal_name: input.legalName,
-        trade_name: input.tradeName,
-        cr_number: input.crNumber,
-        cr_expiry: input.crExpiry ? new Date(input.crExpiry) : undefined,
-        vat_number: input.vatNumber,
-        contact_phone: input.contactPhone,
-        contact_email: input.contactEmail,
-        registered_address_id: input.registeredAddressId,
-        version: { increment: 1 },
-      },
+    const current = await this.prisma.business_profiles.findUnique({ where: { organization_id: orgId } });
+
+    const fields = {
+      trade_name: input.tradeName,
+      cr_expiry: input.crExpiry === undefined ? undefined : input.crExpiry === null ? null : new Date(input.crExpiry),
+      vat_number: input.vatNumber,
+      contact_phone: input.contactPhone,
+      contact_email: input.contactEmail,
+      registered_address_id: input.registeredAddressId,
+    };
+
+    if (!current) {
+      if (!input.legalName || !input.crNumber) {
+        throw new AppError('VALIDATION_FAILED', 'legalName and crNumber are required for a new business profile', {
+          details: [
+            ...(input.legalName ? [] : [{ field: 'legalName', code: 'required' }]),
+            ...(input.crNumber ? [] : [{ field: 'crNumber', code: 'required' }]),
+          ],
+        });
+      }
+      const created = await this.prisma.business_profiles.create({
+        data: { organization_id: orgId, ...fields, legal_name: input.legalName, cr_number: input.crNumber },
+      });
+      return this.serializeBusinessProfile(created);
+    }
+
+    // What the review is about: only the three identity fields, and only when the value really changes.
+    const changes: Record<string, { from: string | null; to: string | null }> = {};
+    for (const [key, col] of REVIEWED_FIELDS) {
+      const next = input[key];
+      const prev = current[col];
+      if (next !== undefined && (next ?? null) !== (prev ?? null)) changes[key] = { from: prev ?? null, to: next ?? null };
+    }
+    // An approved profile (or one already back in review) that changes an identity field is (re)reviewed.
+    const inReview = current.verification_status === 'APPROVED' || current.verification_status === 'UNDER_REVIEW';
+    const needsReview = inReview && Object.keys(changes).length > 0;
+
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.business_profiles.update({
+        where: { organization_id: orgId },
+        data: {
+          ...fields,
+          legal_name: input.legalName,
+          cr_number: input.crNumber,
+          version: { increment: 1 },
+          ...(needsReview && { verification_status: 'UNDER_REVIEW' as const }),
+        },
+      });
+      if (needsReview) {
+        // A review already open takes the new values into the same item: it keeps the value from before
+        // the first change and shows the latest one.
+        const open = await tx.verification_items.findFirst({
+          where: { item_type: 'BUSINESS_PROFILE', ref_id: orgId, status: 'PENDING', verification_cases: { status: { in: ['SUBMITTED', 'UNDER_REVIEW'] } } },
+          select: { auto_check_result: true },
+        });
+        const earlier = (open?.auto_check_result as { changes?: typeof changes } | null)?.changes ?? {};
+        const merged: typeof changes = { ...earlier };
+        for (const [f, v] of Object.entries(changes)) merged[f] = { from: earlier[f]?.from ?? v.from, to: v.to };
+        for (const f of Object.keys(merged)) if (merged[f].from === merged[f].to) delete merged[f];
+        await this.queueVerificationItem(orgId, 'BUSINESS_PROFILE', orgId, {
+          tx,
+          autoCheck: { kind: 'PROFILE_CHANGED_AFTER_APPROVAL', changes: merged },
+        });
+        await this.audit.logUser(
+          {
+            userId,
+            action: 'business_profile.changed_after_approval',
+            entityType: 'business_profile',
+            entityId: orgId,
+            before: Object.fromEntries(Object.entries(changes).map(([f, v]) => [f, v.from])),
+            after: Object.fromEntries(Object.entries(changes).map(([f, v]) => [f, v.to])),
+          },
+          tx,
+        );
+      }
+      return row;
     });
-    return this.serializeBusinessProfile(profile);
+    return this.serializeBusinessProfile(saved);
   }
 
   private serializeBusinessProfile(p: {
@@ -584,16 +647,18 @@ export class KybService {
    */
   async queueVerificationItem(
     orgId: string,
-    itemType: 'DOCUMENT' | 'LICENSE' | 'BANK_ACCOUNT',
+    itemType: 'DOCUMENT' | 'LICENSE' | 'BANK_ACCOUNT' | 'BUSINESS_PROFILE',
     refId: string,
+    opts: { tx?: Prisma.TransactionClient; autoCheck?: Prisma.InputJsonValue } = {},
   ) {
-    const ws = await this.prisma.org_workspaces.findFirst({
+    const db = opts.tx ?? this.prisma;
+    const ws = await db.org_workspaces.findFirst({
       where: { organization_id: orgId },
       orderBy: { created_at: 'desc' },
     });
     if (!ws) return null;
 
-    const open = await this.prisma.verification_cases.findFirst({
+    const open = await db.verification_cases.findFirst({
       where: { organization_id: orgId, workspace: ws.workspace, status: { in: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'CHANGES_REQUESTED'] } },
       orderBy: { created_at: 'desc' },
     });
@@ -601,7 +666,7 @@ export class KybService {
     let caseId: string;
     if (!open) {
       caseId = randomUUID();
-      await this.prisma.verification_cases.create({
+      await db.verification_cases.create({
         data: {
           id: caseId,
           organization_id: orgId,
@@ -613,7 +678,7 @@ export class KybService {
     } else {
       caseId = open.id;
       if (open.status === 'DRAFT' || open.status === 'CHANGES_REQUESTED') {
-        await this.prisma.verification_cases.update({
+        await db.verification_cases.update({
           where: { id: caseId },
           data: {
             status: 'SUBMITTED',
@@ -624,10 +689,10 @@ export class KybService {
       }
     }
 
-    await this.prisma.verification_items.upsert({
+    await db.verification_items.upsert({
       where: { case_id_item_type_ref_id: { case_id: caseId, item_type: itemType, ref_id: refId } },
-      create: { id: randomUUID(), case_id: caseId, item_type: itemType, ref_id: refId },
-      update: { status: 'PENDING' },
+      create: { id: randomUUID(), case_id: caseId, item_type: itemType, ref_id: refId, auto_check_result: opts.autoCheck },
+      update: { status: 'PENDING', ...(opts.autoCheck !== undefined && { auto_check_result: opts.autoCheck }) },
     });
 
     return { caseId };

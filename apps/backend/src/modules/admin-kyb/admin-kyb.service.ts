@@ -136,6 +136,8 @@ export class AdminKybService {
           refId: i.ref_id,
           status: i.status,
           reasonNote: i.reason_note,
+          // For a business-profile item opened by an edit after approval: what changed (from -> to).
+          autoCheck: i.auto_check_result,
         })),
       })),
     };
@@ -261,6 +263,15 @@ export class AdminKybService {
         await tx.provider_activities.updateMany({
           where: { organization_id: kase.organization_id, status: 'PENDING' },
           data: { status: 'APPROVED', approved_at: new Date() },
+        });
+      }
+
+      // A review that rejects a workspace which was already live (a re-review after the business identity
+      // changed) stops it. For a first application the workspace is not active, so this changes nothing.
+      if (decision === 'REJECTED') {
+        await tx.org_workspaces.updateMany({
+          where: { organization_id: kase.organization_id, workspace: kase.workspace, status: 'ACTIVE' },
+          data: { status: 'SUSPENDED' },
         });
       }
 

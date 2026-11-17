@@ -65,10 +65,27 @@ describe('AdminKybService.decideCase', () => {
     const t = setup();
     await t.service.decideCase('staff-1', CASE, decision, 'The license has expired');
 
-    expect(t.prisma.org_workspaces.updateMany).not.toHaveBeenCalled();
+    // Nothing is ever opened by these decisions. A rejection can stop a workspace that was already live
+    // (re-review after the business identity changed); it never activates one.
+    for (const [arg] of t.prisma.org_workspaces.updateMany.mock.calls) expect(arg.data.status).not.toBe('ACTIVE');
     expect(t.prisma.provider_activities.updateMany).not.toHaveBeenCalled();
     expect(t.sent.map((n) => n.type)).toEqual([type, type]);
     expect(t.sent[0]).toMatchObject({ params: { reason: 'The license has expired' } });
+  });
+
+  it('rejecting stops a workspace that was live (re-review), and only a live one', async () => {
+    const t = setup();
+    await t.service.decideCase('staff-1', CASE, 'REJECTED', 'The CR does not match');
+    expect(t.prisma.org_workspaces.updateMany).toHaveBeenCalledWith({
+      where: { organization_id: ORG, workspace: 'PROVIDER', status: 'ACTIVE' },
+      data: { status: 'SUSPENDED' },
+    });
+  });
+
+  it('asking for changes leaves the workspace as it is', async () => {
+    const t = setup();
+    await t.service.decideCase('staff-1', CASE, 'CHANGES_REQUESTED', 'Please upload the CR');
+    expect(t.prisma.org_workspaces.updateMany).not.toHaveBeenCalled();
   });
 
   it('the notice is written inside the same transaction as the decision', async () => {
